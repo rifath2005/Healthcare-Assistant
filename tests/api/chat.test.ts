@@ -16,6 +16,7 @@ vi.mock("@/lib/gemini", () => ({
   }),
   getGeminiClient: () => ({}),
   generateEmbedding: async () => new Array(768).fill(0.1),
+  FALLBACK_MODELS: ["gemini-3.1-flash-lite"],
 }));
 
 describe("POST /api/chat Streaming Route Handler", () => {

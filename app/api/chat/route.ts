@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { evaluateCrisisSafety, CRISIS_RESOURCES } from "@/lib/safety";
 import { searchSimilarDocuments } from "@/lib/vectorStore";
-import { getChatModel } from "@/lib/gemini";
+import { getChatModel, FALLBACK_MODELS } from "@/lib/gemini";
 import { sanitizeUserPrompt, formatDefensivePrompt } from "@/lib/sanitizer";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -129,7 +129,6 @@ export async function POST(req: NextRequest) {
 
     // 7. Invoke Gemini Streaming Generation
     recordGeminiUsage(350);
-    const chatModel = getChatModel({ isEmpathetic });
 
     // Format historical messages for multi-turn Gemini chat
     // Gemini rules:
@@ -170,13 +169,48 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let result;
-    try {
-      const chatSession = chatModel.startChat({ history: validHistory });
-      result = await chatSession.sendMessageStream(defensivePrompt);
-    } catch (chatError) {
-      console.warn("Gemini startChat stream failed, falling back to direct generateContentStream:", chatError);
-      result = await chatModel.generateContentStream(defensivePrompt);
+    let result: any = null;
+    let lastError: any = null;
+    const modelsToTry =
+      Array.isArray(FALLBACK_MODELS) && FALLBACK_MODELS.length > 0
+        ? FALLBACK_MODELS
+        : ["gemini-3.1-flash-lite"];
+
+    for (const candidateModel of modelsToTry) {
+      try {
+        const model = getChatModel({ isEmpathetic, modelName: candidateModel });
+
+        try {
+          const chatSession = model.startChat({ history: validHistory });
+          result = await chatSession.sendMessageStream(defensivePrompt);
+        } catch (chatError: any) {
+          console.warn(`startChat on ${candidateModel} failed, trying generateContentStream:`, chatError?.message);
+          result = await model.generateContentStream(defensivePrompt);
+        }
+
+        if (result && result.stream) {
+          break; // Successfully initiated streaming session
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Model ${candidateModel} failed, trying next candidate:`, err?.message);
+      }
+    }
+
+    if (!result || !result.stream) {
+      const isQuota =
+        lastError?.status === 429 ||
+        lastError?.message?.includes("quota") ||
+        lastError?.message?.includes("429");
+
+      return NextResponse.json(
+        {
+          error: isQuota
+            ? "Daily Google Gemini free-tier quota is currently exhausted. Please try again later or configure a paid/alternative API key."
+            : "Unable to generate healthcare response. Please try again in a moment.",
+        },
+        { status: isQuota ? 429 : 500 }
+      );
     }
 
     // 8. Stream Response to Client via Server-Sent Events (SSE)

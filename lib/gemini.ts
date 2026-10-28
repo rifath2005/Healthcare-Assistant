@@ -60,10 +60,18 @@ export function getGeminiClient(): GoogleGenerativeAI {
 }
 
 export interface ModelOptions {
+  modelName?: string;
   isEmpathetic?: boolean;
   temperature?: number;
   systemInstructionAddendum?: string;
 }
+
+export const FALLBACK_MODELS = [
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash-lite",
+  "gemini-flash-lite-latest",
+  "gemini-3.5-flash",
+];
 
 /**
  * Returns a configured Gemini 1.5 Flash generative model.
@@ -80,7 +88,7 @@ export function getChatModel(options: ModelOptions = {}): GenerativeModel {
     systemInstruction += "\n" + options.systemInstructionAddendum;
   }
 
-  const modelName = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+  const modelName = options.modelName || process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
 
   return client.getGenerativeModel({
     model: modelName,
