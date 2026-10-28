@@ -27,11 +27,18 @@ export function BotProtection({ onVerify, siteKey }: BotProtectionProps) {
 
       {/* Cloudflare Turnstile Widget */}
       {resolvedSiteKey && resolvedSiteKey.length > 5 ? (
-        <div className="flex justify-center py-2">
+        <div className="flex flex-col items-center justify-center py-2 min-h-[65px]">
           <Turnstile
             siteKey={resolvedSiteKey}
             onSuccess={(token) => {
               if (onVerify) onVerify(token);
+            }}
+            onError={(errCode) => {
+              console.warn("[Cloudflare Turnstile] Challenge failed or domain mismatch (code:", errCode, "). If on localhost, add localhost to Cloudflare allowed domains.");
+            }}
+            options={{
+              theme: "auto",
+              retry: "never",
             }}
           />
         </div>
