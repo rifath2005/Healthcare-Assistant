@@ -40,7 +40,7 @@ export async function GET() {
       },
       gemini: {
         configured: isGeminiConfigured,
-        model: "gemini-1.5-flash",
+        model: process.env.GEMINI_MODEL || "gemini-3.5-flash",
       },
     },
     telemetry,

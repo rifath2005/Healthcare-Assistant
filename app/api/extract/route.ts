@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       recordGeminiUsage(150);
       const client = getGeminiClient();
       const model = client.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: process.env.GEMINI_MODEL || "gemini-3.5-flash",
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.1,

@@ -1,3 +1,7 @@
+import * as dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+dotenv.config();
+
 import { evaluateCrisisSafety } from "../lib/safety";
 import { extractLocalEntities } from "../lib/nlpFallback";
 import { searchSimilarDocuments } from "../lib/vectorStore";

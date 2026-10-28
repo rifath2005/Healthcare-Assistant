@@ -8,7 +8,11 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required").default("dummy_gemini_key"),
   
   // Supabase Credentials
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url("NEXT_PUBLIC_SUPABASE_URL must be a valid URL").default("https://placeholder.supabase.co"),
+  NEXT_PUBLIC_SUPABASE_URL: z
+    .string()
+    .url("NEXT_PUBLIC_SUPABASE_URL must be a valid URL")
+    .transform((val) => val.replace(/\/rest\/v1\/?$/, "").replace(/\/+$/, ""))
+    .default("https://placeholder.supabase.co"),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, "NEXT_PUBLIC_SUPABASE_ANON_KEY is required").default("placeholder_anon_key"),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, "SUPABASE_SERVICE_ROLE_KEY is required").default("placeholder_service_role_key"),
   
@@ -20,7 +24,8 @@ const envSchema = z.object({
   
   // Resend Email
   RESEND_API_KEY: z.string().optional().default(""),
-  EMAIL_FROM: z.string().default("appointments@healthcare-assistant.local"),
+  RESEND_FROM_EMAIL: z.string().optional().default("onboarding@resend.dev"),
+  EMAIL_FROM: z.string().optional().default("onboarding@resend.dev"),
   
   // Security & Cron
   CRON_SECRET: z.string().optional().default("default_cron_secret_32_characters_long"),
@@ -56,7 +61,8 @@ try {
     GOOGLE_SERVICE_ACCOUNT_EMAIL: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
-    EMAIL_FROM: process.env.EMAIL_FROM,
+    RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM,
+    EMAIL_FROM: process.env.EMAIL_FROM || process.env.RESEND_FROM_EMAIL,
     CRON_SECRET: process.env.CRON_SECRET,
     CLINICAL_ENCRYPTION_KEY: process.env.CLINICAL_ENCRYPTION_KEY,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,

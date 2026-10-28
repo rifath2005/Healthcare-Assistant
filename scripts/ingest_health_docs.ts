@@ -49,9 +49,11 @@ async function main() {
     process.exit(1);
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const cleanSupabaseUrl = supabaseUrl.replace(/\/rest\/v1\/?$/, "").replace(/\/+$/, "");
+  const supabase = createClient(cleanSupabaseUrl, serviceRoleKey);
   const genAI = new GoogleGenerativeAI(geminiApiKey);
-  const embedModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+  const modelName = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
+  const embedModel = genAI.getGenerativeModel({ model: modelName });
 
   const files = fs.readdirSync(DOCS_DIR).filter((f) => f.endsWith(".md"));
   console.log(`📂 Found ${files.length} markdown documents to process in ${DOCS_DIR}`);
@@ -76,7 +78,10 @@ async function main() {
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       try {
-        const embedResult = await embedModel.embedContent(chunk);
+        const embedResult = await embedModel.embedContent({
+          content: { parts: [{ text: chunk }] },
+          outputDimensionality: 768,
+        } as any);
         const embedding = embedResult.embedding.values;
 
         const { error } = await supabase.from("health_documents").insert({

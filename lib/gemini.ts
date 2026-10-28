@@ -77,8 +77,10 @@ export function getChatModel(options: ModelOptions = {}): GenerativeModel {
     systemInstruction += "\n" + options.systemInstructionAddendum;
   }
 
+  const modelName = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+
   return client.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: modelName,
     systemInstruction,
     generationConfig: {
       temperature,
@@ -90,12 +92,13 @@ export function getChatModel(options: ModelOptions = {}): GenerativeModel {
 }
 
 /**
- * Returns the Gemini text embedding model (text-embedding-004, 768 dimensions).
+ * Returns the Gemini text embedding model (gemini-embedding-001 / text-embedding-004, 768 dimensions).
  */
 export function getEmbeddingModel(): GenerativeModel {
   const client = getGeminiClient();
+  const modelName = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
   return client.getGenerativeModel({
-    model: "text-embedding-004",
+    model: modelName,
   });
 }
 
@@ -106,7 +109,10 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   try {
     recordGeminiUsage(100);
     const model = getEmbeddingModel();
-    const result = await model.embedContent(text);
+    const result = await model.embedContent({
+      content: { parts: [{ text }] },
+      outputDimensionality: 768,
+    } as any);
     return result.embedding.values;
   } catch (err) {
     console.error("Gemini embedding generation error:", err);
