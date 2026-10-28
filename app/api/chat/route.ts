@@ -132,14 +132,52 @@ export async function POST(req: NextRequest) {
     const chatModel = getChatModel({ isEmpathetic });
 
     // Format historical messages for multi-turn Gemini chat
-    const history = messages.slice(0, -1).map((m: { role: string; content: string }) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: sanitizeUserPrompt(m.content) }],
-    }));
+    // Gemini rules:
+    // 1. History must start with a 'user' turn (cannot start with 'model'/assistant).
+    // 2. Roles must strictly alternate: 'user' -> 'model' -> 'user' -> 'model'.
+    // 3. parts[].text must be non-empty strings.
+    const rawHistory = messages.slice(0, -1);
+    const validHistory: Array<{ role: "user" | "model"; parts: [{ text: string }] }> = [];
 
-    const chatSession = chatModel.startChat({ history });
+    // Find the first user message in history (Gemini history MUST start with role: 'user')
+    const firstUserIndex = rawHistory.findIndex((m: any) => m.role === "user");
 
-    const result = await chatSession.sendMessageStream(defensivePrompt);
+    if (firstUserIndex !== -1) {
+      let expectedRole: "user" | "model" = "user";
+
+      for (let i = firstUserIndex; i < rawHistory.length; i++) {
+        const item = rawHistory[i];
+        const role = item.role === "assistant" ? "model" : "user";
+        const contentText = sanitizeUserPrompt(item.content || "").trim();
+        if (!contentText) continue;
+
+        if (role === expectedRole) {
+          validHistory.push({
+            role,
+            parts: [{ text: contentText }],
+          });
+          expectedRole = expectedRole === "user" ? "model" : "user";
+        } else if (validHistory.length > 0) {
+          // Merge consecutive messages with the same role
+          const prev = validHistory[validHistory.length - 1];
+          prev.parts[0].text += `\n\n${contentText}`;
+        }
+      }
+
+      // History must end with 'model' so the next turn (defensivePrompt from user) alternates properly
+      if (validHistory.length > 0 && validHistory[validHistory.length - 1].role === "user") {
+        validHistory.pop();
+      }
+    }
+
+    let result;
+    try {
+      const chatSession = chatModel.startChat({ history: validHistory });
+      result = await chatSession.sendMessageStream(defensivePrompt);
+    } catch (chatError) {
+      console.warn("Gemini startChat stream failed, falling back to direct generateContentStream:", chatError);
+      result = await chatModel.generateContentStream(defensivePrompt);
+    }
 
     // 8. Stream Response to Client via Server-Sent Events (SSE)
     let accumulatedContent = "";
