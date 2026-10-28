@@ -1,0 +1,218 @@
+import { NextRequest, NextResponse } from "next/server";
+import { evaluateCrisisSafety, CRISIS_RESOURCES } from "@/lib/safety";
+import { searchSimilarDocuments } from "@/lib/vectorStore";
+import { getChatModel } from "@/lib/gemini";
+import { sanitizeUserPrompt, formatDefensivePrompt } from "@/lib/sanitizer";
+import { checkRateLimit } from "@/lib/ratelimit";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { recordGeminiUsage } from "@/lib/telemetry";
+
+export const runtime = "nodejs";
+
+export async function POST(req: NextRequest) {
+  try {
+    // 1. Rate limiting
+    const ip = req.headers.get("x-forwarded-for") || "127.0.0.1";
+    const rateCheck = await checkRateLimit(`chat_${ip}`, 20, 60000);
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment before sending another message." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": rateCheck.reset.toString(),
+            "X-RateLimit-Limit": rateCheck.limit.toString(),
+            "X-RateLimit-Remaining": "0",
+          },
+        }
+      );
+    }
+
+    // 2. Parse and validate body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON request body" }, { status: 400 });
+    }
+
+    const { messages, conversationId, isEmpathetic } = body || {};
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json(
+        { error: "Request must include a non-empty 'messages' array" },
+        { status: 400 }
+      );
+    }
+
+    const latestMessage = messages[messages.length - 1];
+    if (!latestMessage || !latestMessage.content || typeof latestMessage.content !== "string") {
+      return NextResponse.json({ error: "Message content cannot be empty" }, { status: 400 });
+    }
+
+    const rawInput = latestMessage.content;
+    const sanitizedInput = sanitizeUserPrompt(rawInput);
+
+    // 3. Pre-execution Clinical Crisis Gate
+    const crisisCheck = evaluateCrisisSafety(sanitizedInput);
+    if (crisisCheck.isCrisis) {
+      // Asynchronously log incident to crisis_logs table
+      try {
+        const supabase = createServerSupabaseClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        await supabase.from("crisis_logs").insert({
+          user_id: user?.id || null,
+          trigger_text: sanitizedInput,
+          detected_severity: crisisCheck.severity,
+          reviewed: false,
+        });
+      } catch (logErr) {
+        console.error("Crisis logging error:", logErr);
+      }
+
+      // Stream structured CRISIS_TRIGGERED event payload immediately
+      const crisisPayload = JSON.stringify({
+        type: "CRISIS_TRIGGERED",
+        severity: crisisCheck.severity,
+        trigger: crisisCheck.triggerMatched,
+        resources: CRISIS_RESOURCES,
+      });
+
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${crisisPayload}\n\n`));
+            controller.close();
+          },
+        }),
+        {
+          headers: {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        }
+      );
+    }
+
+    // 4. Query RAG Knowledge Base
+    const matchedDocs = await searchSimilarDocuments(sanitizedInput, 3, 0.72);
+    let contextPassage = "";
+    const citations: Array<{ index: number; title: string; source_url?: string; excerpt: string }> = [];
+
+    if (matchedDocs.length > 0) {
+      contextPassage = matchedDocs
+        .map((doc, idx) => {
+          const num = idx + 1;
+          citations.push({
+            index: num,
+            title: doc.title,
+            source_url: doc.source_url,
+            excerpt: doc.content.slice(0, 160) + "...",
+          });
+          return `[${num}] "${doc.title}": ${doc.content}`;
+        })
+        .join("\n\n");
+    }
+
+    // 5. Construct Defensive Grounded Prompt
+    const defensivePrompt = formatDefensivePrompt(sanitizedInput, contextPassage);
+
+    // 6. Check user session for persistence
+    const supabase = createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    // 7. Invoke Gemini Streaming Generation
+    recordGeminiUsage(350);
+    const chatModel = getChatModel({ isEmpathetic });
+
+    // Format historical messages for multi-turn Gemini chat
+    const history = messages.slice(0, -1).map((m: { role: string; content: string }) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: sanitizeUserPrompt(m.content) }],
+    }));
+
+    const chatSession = chatModel.startChat({ history });
+
+    const result = await chatSession.sendMessageStream(defensivePrompt);
+
+    // 8. Stream Response to Client via Server-Sent Events (SSE)
+    let accumulatedContent = "";
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+
+        // If citations were found, emit them as the first event
+        if (citations.length > 0) {
+          const citationEvent = JSON.stringify({ type: "CITATIONS", citations });
+          controller.enqueue(encoder.encode(`data: ${citationEvent}\n\n`));
+        }
+
+        try {
+          for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            if (chunkText) {
+              accumulatedContent += chunkText;
+              const textEvent = JSON.stringify({ type: "TOKEN", content: chunkText });
+              controller.enqueue(encoder.encode(`data: ${textEvent}\n\n`));
+            }
+          }
+
+          // Emit DONE event
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "DONE" })}\n\n`));
+
+          // 9. Persist messages to Supabase if authenticated and conversationId exists
+          if (user && conversationId) {
+            try {
+              await supabase.from("messages").insert([
+                {
+                  conversation_id: conversationId,
+                  role: "user",
+                  content: rawInput,
+                },
+                {
+                  conversation_id: conversationId,
+                  role: "assistant",
+                  content: accumulatedContent,
+                  metadata: { citations },
+                },
+              ]);
+            } catch (persistErr) {
+              console.error("Failed to persist conversation turns:", persistErr);
+            }
+          }
+
+          controller.close();
+        } catch (streamError) {
+          console.error("Streaming error:", streamError);
+          const errorEvent = JSON.stringify({
+            type: "ERROR",
+            error: "An error occurred while streaming the medical response.",
+          });
+          controller.enqueue(encoder.encode(`data: ${errorEvent}\n\n`));
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  } catch (error) {
+    console.error("Chat API route error:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error in Chat Pipeline" },
+      { status: 500 }
+    );
+  }
+}
