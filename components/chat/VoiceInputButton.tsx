@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Mic, MicOff, AlertCircle } from "lucide-react";
+import { Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -16,82 +16,122 @@ export function VoiceInputButton({ onTranscript, disabled }: VoiceInputButtonPro
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
-    // Check Web Speech API support
+    const SpeechRecognition =
+      typeof window !== "undefined" &&
+      ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+    if (!SpeechRecognition) {
+      setIsSupported(false);
+    }
+  }, []);
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+  };
+
+  const startListening = async () => {
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
+      toast.info(
+        "Voice transcription is not supported in this browser. Please use Google Chrome, Edge, or Safari."
+      );
       setIsSupported(false);
       return;
     }
 
+    // 1. Warm up and verify microphone permission via getUserMedia
+    try {
+      if (navigator?.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Release stream tracks immediately so SpeechRecognition engine can bind cleanly to mic
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    } catch (permErr: any) {
+      if (permErr.name === "NotAllowedError" || permErr.name === "PermissionDeniedError") {
+        toast.error("Microphone access was denied. Please allow microphone permissions in your browser address bar.");
+        return;
+      }
+    }
+
+    // 2. Instantiate a fresh SpeechRecognition instance on every activation
+    // Avoids reusing tainted/errored recognition sockets from prior network drops
     try {
       const recognition = new SpeechRecognition();
-      recognition.continuous = true;
+      // Single-utterance mode (continuous = false) is drastically more reliable across Linux & Chromium
+      recognition.continuous = false;
       recognition.interimResults = true;
-      recognition.lang = "en-US";
+      recognition.lang = navigator.language || "en-US";
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        toast.info("Listening... Speak your symptoms or health questions clearly.");
+      };
 
       recognition.onresult = (event: any) => {
-        let currentTranscript = "";
+        let transcript = "";
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const item = event.results[i];
           if (item.isFinal) {
-            onTranscript(item[0].transcript);
-          } else {
-            currentTranscript += item[0].transcript;
+            transcript = item[0].transcript;
+            onTranscript(transcript);
           }
         }
       };
 
       recognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
-        if (event.error === "not-allowed") {
-          toast.error("Microphone access was denied. Please allow microphone permissions.");
-        } else if (event.error !== "no-speech") {
+        setIsListening(false);
+
+        if (event.error === "network") {
+          toast.error(
+            "Speech recognition network error: Browser could not connect to Google Speech Services. This happens if extensions (such as Brevity / adblockers), Brave Shields, or network proxies block speech services, or on Linux Chromium without Google API keys.",
+            { duration: 8000 }
+          );
+        } else if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          toast.error("Microphone permission was denied. Please enable microphone permissions in your browser address bar.");
+        } else if (event.error === "no-speech") {
+          toast.info("No speech was detected. Please try speaking closer to your microphone.");
+        } else if (event.error !== "aborted") {
           toast.error(`Speech recognition: ${event.error}`);
         }
-        setIsListening(false);
       };
 
       recognition.onend = () => {
         setIsListening(false);
+        recognitionRef.current = null;
       };
 
       recognitionRef.current = recognition;
-    } catch (err) {
-      console.warn("Speech recognition initialization failed:", err);
-      setIsSupported(false);
-    }
-
-    return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch {}
-      }
-    };
-  }, [onTranscript]);
-
-  const toggleListening = () => {
-    if (!isSupported) {
-      toast.info("Voice transcription is not supported in this browser. Please use Chrome, Edge, or Safari.");
-      return;
-    }
-
-    if (isListening) {
-      recognitionRef.current?.stop();
+      recognition.start();
+    } catch (err: any) {
+      console.error("Failed to start speech recognition:", err);
       setIsListening(false);
-    } else {
-      try {
-        recognitionRef.current?.start();
-        setIsListening(true);
-        toast.info("Listening... Speak your symptoms or health questions clearly.");
-      } catch (err) {
-        console.error("Failed to start speech recognition:", err);
-        setIsListening(false);
-      }
+      toast.error("Could not start speech recognition: " + (err.message || "Unknown error"));
     }
   };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopListening();
+    };
+  }, []);
 
   return (
     <button
