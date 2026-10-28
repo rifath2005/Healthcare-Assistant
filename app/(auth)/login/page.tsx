@@ -66,6 +66,7 @@ export default function LoginPage() {
       }
 
       router.push(redirectDestination);
+      router.refresh();
     } catch (err: unknown) {
       console.error("Login exception:", err);
       setServerError("An unexpected error occurred. Please try again.");

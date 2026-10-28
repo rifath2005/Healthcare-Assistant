@@ -23,6 +23,7 @@ import { toast } from "sonner";
 export default function HomePage() {
   const router = useRouter();
   const [user, setUser] = useState<any | null>(null);
+  const [loadingUser, setLoadingUser] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -32,29 +33,39 @@ export default function HomePage() {
 
     // Check active session
     supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-      if (user) {
-        supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .single()
-          .then(({ data }) => {
-            if (data?.role === "admin") setIsAdmin(true);
-          });
+      if (!user) {
+        router.push("/login");
+        return;
       }
+      setUser(user);
+      setLoadingUser(false);
+      supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.role === "admin") setIsAdmin(true);
+        });
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
+      if (!session?.user) {
+        setUser(null);
+        setLoadingUser(false);
+        router.push("/login");
+      } else {
+        setUser(session.user);
+        setLoadingUser(false);
+      }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -63,12 +74,26 @@ export default function HomePage() {
     setIsAdmin(false);
     setActiveConversationId(null);
     toast.success("Signed out successfully");
+    router.push("/login");
     router.refresh();
   };
 
   const handleNewConversation = () => {
     setActiveConversationId(null);
   };
+
+  if (loadingUser) {
+    return (
+      <div className="flex flex-col h-screen w-full items-center justify-center bg-white dark:bg-slate-950">
+        <div className="flex flex-col items-center gap-3">
+          <div className="p-3 bg-emerald-600 rounded-2xl text-white shadow-lg animate-pulse">
+            <HeartPulse className="w-8 h-8" />
+          </div>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Loading conversation...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-white dark:bg-slate-950">

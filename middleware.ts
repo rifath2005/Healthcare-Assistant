@@ -8,7 +8,8 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+  const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, "").replace(/\/+$/, "");
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder_anon_key";
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -44,23 +45,33 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const pathname = url.pathname;
 
-  const isAuthRoute = pathname === "/login" || pathname === "/signup" || pathname === "/forgot-password";
-  const isProtectedRoute =
-    pathname.startsWith("/appointments") ||
-    pathname.startsWith("/settings") ||
-    pathname.startsWith("/dashboard");
+  const isAuthRoute =
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/forgot-password" ||
+    pathname === "/reset-password" ||
+    pathname === "/verify-email";
+
+  const isPublicRoute =
+    isAuthRoute ||
+    pathname === "/terms" ||
+    pathname === "/privacy" ||
+    pathname.startsWith("/auth/callback");
+
   const isAdminRoute = pathname.startsWith("/admin");
 
-  // 1. If authenticated and attempting to view login/signup -> redirect to home / chat
+  // 1. If authenticated and attempting to view login/signup -> redirect to home (conversation page)
   if (session && isAuthRoute) {
     url.pathname = "/";
     return NextResponse.redirect(url);
   }
 
-  // 2. If unauthenticated and accessing protected routes -> redirect to login
-  if (!session && (isProtectedRoute || isAdminRoute)) {
+  // 2. If unauthenticated and NOT on a public route (including home / convo page `/`) -> redirect to /login
+  if (!session && !isPublicRoute) {
     url.pathname = "/login";
-    url.searchParams.set("redirect", pathname);
+    if (pathname !== "/") {
+      url.searchParams.set("redirect", pathname);
+    }
     return NextResponse.redirect(url);
   }
 
@@ -84,6 +95,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.json|api/|data/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon|manifest.json|api/|data/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

@@ -70,6 +70,7 @@ export default function SignupPage() {
         router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
       } else {
         router.push("/");
+        router.refresh();
       }
     } catch (err: unknown) {
       console.error("Signup exception:", err);
