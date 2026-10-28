@@ -1,6 +1,10 @@
 import fs from "fs";
 import path from "path";
 import * as dotenv from "dotenv";
+import WebSocket from "ws";
+if (typeof (globalThis as any).WebSocket === "undefined") {
+  (globalThis as any).WebSocket = WebSocket;
+}
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -28,12 +32,16 @@ function chunkText(text: string, chunkSize: number = 800, overlap: number = 100)
       }
     }
 
-    chunks.push(chunk.trim());
-    startIndex += chunk.length - overlap;
-    if (startIndex <= 0) break;
+    const trimmed = chunk.trim();
+    if (trimmed.length > 50) {
+      chunks.push(trimmed);
+    }
+
+    const step = Math.max(chunk.length - overlap, 100);
+    startIndex += step;
   }
 
-  return chunks.filter((c) => c.length > 50);
+  return chunks;
 }
 
 async function main() {
