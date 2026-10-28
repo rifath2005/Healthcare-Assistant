@@ -136,7 +136,7 @@ export function ChatContainer({
       setGuestMessages(nextMessages as GuestMessage[]);
     }
 
-    // 2. Trigger asynchronous NLP extraction for intent & mood
+    // 2. Trigger asynchronous NLP extraction for mood detection
     fetch("/api/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -145,9 +145,6 @@ export function ChatContainer({
       .then((r) => r.json())
       .then((entities) => {
         if (entities.mood) setDetectedMood(entities.mood);
-        if (entities.intent === "appointment_booking") {
-          setShowBooking(true);
-        }
       })
       .catch((err) => console.warn("Extraction non-blocking error:", err));
 

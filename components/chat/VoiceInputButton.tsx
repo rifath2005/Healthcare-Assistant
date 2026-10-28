@@ -25,7 +25,25 @@ export function VoiceInputButton({ onTranscript, disabled }: VoiceInputButtonPro
     }
   }, []);
 
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const clearSilenceTimeout = () => {
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
+  };
+
+  const resetSilenceTimeout = () => {
+    clearSilenceTimeout();
+    // Wait for 5 seconds of silence (mute state) before automatically turning off mic
+    silenceTimeoutRef.current = setTimeout(() => {
+      stopListening();
+    }, 5000);
+  };
+
   const stopListening = () => {
+    clearSilenceTimeout();
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -62,50 +80,65 @@ export function VoiceInputButton({ onTranscript, disabled }: VoiceInputButtonPro
     }
 
     // 2. Instantiate a fresh SpeechRecognition instance on every activation
-    // Avoids reusing tainted/errored recognition sockets from prior network drops
     try {
       const recognition = new SpeechRecognition();
-      // Single-utterance mode (continuous = false) is drastically more reliable across Linux & Chromium
-      recognition.continuous = false;
+      // Continuous mode allows user to pause naturally without instant cutoff
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = navigator.language || "en-US";
       recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
         setIsListening(true);
-        toast.info("Listening... Speak your symptoms or health questions clearly.");
+        resetSilenceTimeout();
+        toast.info("Listening... Speak clearly (will auto-stop after 5s of silence).");
+      };
+
+      recognition.onspeechstart = () => {
+        resetSilenceTimeout();
+      };
+
+      recognition.onspeechend = () => {
+        resetSilenceTimeout();
       };
 
       recognition.onresult = (event: any) => {
-        let transcript = "";
+        // Reset 5s silence countdown upon receiving audio/speech
+        resetSilenceTimeout();
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const item = event.results[i];
           if (item.isFinal) {
-            transcript = item[0].transcript;
-            onTranscript(transcript);
+            const transcript = item[0].transcript;
+            if (transcript && transcript.trim()) {
+              onTranscript(transcript.trim());
+            }
           }
         }
       };
 
       recognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
+        clearSilenceTimeout();
         setIsListening(false);
 
         if (event.error === "network") {
           toast.error(
-            "Speech recognition network error: Browser could not connect to Google Speech Services. This happens if extensions (such as Brevity / adblockers), Brave Shields, or network proxies block speech services, or on Linux Chromium without Google API keys.",
-            { duration: 8000 }
+            "Speech recognition network error: Google Speech Services was unreachable. If you have Brevity or adblockers active, please disable them for localhost:3001.",
+            { duration: 7000 }
           );
         } else if (event.error === "not-allowed" || event.error === "service-not-allowed") {
           toast.error("Microphone permission was denied. Please enable microphone permissions in your browser address bar.");
         } else if (event.error === "no-speech") {
-          toast.info("No speech was detected. Please try speaking closer to your microphone.");
+          // If no speech detected, silence timeout or stop gracefully
+          resetSilenceTimeout();
         } else if (event.error !== "aborted") {
           toast.error(`Speech recognition: ${event.error}`);
         }
       };
 
       recognition.onend = () => {
+        clearSilenceTimeout();
         setIsListening(false);
         recognitionRef.current = null;
       };
@@ -114,6 +147,7 @@ export function VoiceInputButton({ onTranscript, disabled }: VoiceInputButtonPro
       recognition.start();
     } catch (err: any) {
       console.error("Failed to start speech recognition:", err);
+      clearSilenceTimeout();
       setIsListening(false);
       toast.error("Could not start speech recognition: " + (err.message || "Unknown error"));
     }

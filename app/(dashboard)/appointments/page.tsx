@@ -12,13 +12,16 @@ import {
   Loader2,
   CheckCircle2,
   ExternalLink,
+  CalendarDays,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatAppointmentTime } from "@/lib/timezone";
+import { RescheduleModal } from "@/components/appointment/RescheduleModal";
 import { toast } from "sonner";
 
 interface Appointment {
   id: string;
+  doctor_id?: string;
   doctor_name: string;
   doctor_specialty: string;
   start_time: string;
@@ -32,6 +35,7 @@ export default function UserAppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [reschedulingAppointment, setReschedulingAppointment] = useState<Appointment | null>(null);
 
   const loadAppointments = async () => {
     try {
@@ -189,9 +193,18 @@ export default function UserAppointmentsPage() {
                           className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors shadow-xs"
                         >
                           <Video className="w-3.5 h-3.5" />
-                          Join Google Meet
+                          Join Meet
                         </a>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => setReschedulingAppointment(appt)}
+                        className="py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                        title="Reschedule appointment to a different time"
+                      >
+                        <CalendarDays className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        Change Time
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleCancel(appt.id)}
@@ -212,6 +225,17 @@ export default function UserAppointmentsPage() {
             })}
           </div>
         )}
+
+        <RescheduleModal
+          isOpen={!!reschedulingAppointment}
+          appointment={reschedulingAppointment}
+          onClose={() => setReschedulingAppointment(null)}
+          onSuccess={(updated) => {
+            setAppointments((prev) =>
+              prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
+            );
+          }}
+        />
       </div>
     </div>
   );
