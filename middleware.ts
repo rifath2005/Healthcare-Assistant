@@ -19,28 +19,19 @@ export async function middleware(request: NextRequest) {
       },
       set(name: string, value: string, options: CookieOptions) {
         request.cookies.set({ name, value, ...options });
-        response = NextResponse.next({
-          request: {
-            headers: request.headers,
-          },
-        });
         response.cookies.set({ name, value, ...options });
       },
       remove(name: string, options: CookieOptions) {
         request.cookies.set({ name, value: "", ...options });
-        response = NextResponse.next({
-          request: {
-            headers: request.headers,
-          },
-        });
         response.cookies.set({ name, value: "", ...options });
       },
     },
   });
 
+  // Revalidate auth token with getUser()
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const url = request.nextUrl.clone();
   const pathname = url.pathname;
@@ -60,33 +51,42 @@ export async function middleware(request: NextRequest) {
 
   const isAdminRoute = pathname.startsWith("/admin");
 
-  // 1. If authenticated and attempting to view login/signup -> redirect to home (conversation page)
-  if (session && isAuthRoute) {
-    url.pathname = "/";
-    return NextResponse.redirect(url);
+  // Helper to ensure refreshed auth cookies are preserved across redirects
+  function createRedirectResponse(redirectUrl: URL) {
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    response.cookies.getAll().forEach((c) => {
+      redirectResponse.cookies.set(c);
+    });
+    return redirectResponse;
   }
 
-  // 2. If unauthenticated and NOT on a public route (including home / convo page `/`) -> redirect to /login
-  if (!session && !isPublicRoute) {
+  // 1. If authenticated and attempting to view login/signup -> redirect to home (conversation page)
+  if (user && isAuthRoute) {
+    url.pathname = "/";
+    return createRedirectResponse(url);
+  }
+
+  // 2. If unauthenticated and NOT on a public route (including /) -> redirect to /login
+  if (!user && !isPublicRoute) {
     url.pathname = "/login";
     if (pathname !== "/") {
       url.searchParams.set("redirect", pathname);
     }
-    return NextResponse.redirect(url);
+    return createRedirectResponse(url);
   }
 
   // 3. If accessing admin route, check role in profile
-  if (session && isAdminRoute) {
+  if (user && isAdminRoute) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", session.user.id)
+      .eq("id", user.id)
       .single();
 
     if (profile?.role !== "admin") {
       url.pathname = "/";
       url.searchParams.set("error", "Access denied. Administrative privileges required.");
-      return NextResponse.redirect(url);
+      return createRedirectResponse(url);
     }
   }
 

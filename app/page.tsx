@@ -51,12 +51,12 @@ export default function HomePage() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session?.user) {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
         setUser(null);
         setLoadingUser(false);
         router.push("/login");
-      } else {
+      } else if (session?.user) {
         setUser(session.user);
         setLoadingUser(false);
       }

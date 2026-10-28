@@ -27,7 +27,7 @@ export default function SignupPage() {
     formState: { errors, isValid, isSubmitting },
   } = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
-    mode: "onBlur",
+    mode: "onChange",
   });
 
   const onSubmit = async (data: SignupInput) => {
@@ -69,8 +69,7 @@ export default function SignupPage() {
       if (authData.session === null) {
         router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
       } else {
-        router.push("/");
-        router.refresh();
+        window.location.href = "/";
       }
     } catch (err: unknown) {
       console.error("Signup exception:", err);
@@ -159,7 +158,7 @@ export default function SignupPage() {
 
           <button
             type="submit"
-            disabled={!isValid || loading || isSubmitting}
+            disabled={loading || isSubmitting}
             className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-emerald-600/20"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
