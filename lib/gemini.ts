@@ -50,7 +50,10 @@ let genAIInstance: GoogleGenerativeAI | null = null;
 
 export function getGeminiClient(): GoogleGenerativeAI {
   if (!genAIInstance) {
-    const apiKey = env.GEMINI_API_KEY || "dummy_gemini_key";
+    const apiKey =
+      process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "dummy_gemini_key"
+        ? process.env.GEMINI_API_KEY
+        : env.GEMINI_API_KEY || "dummy_gemini_key";
     genAIInstance = new GoogleGenerativeAI(apiKey);
   }
   return genAIInstance;
