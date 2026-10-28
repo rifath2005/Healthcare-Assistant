@@ -159,12 +159,17 @@ export function ChatContainer({
         detectedMood.toLowerCase()
       );
 
+      // Filter out client-side welcome UI placeholder so history begins with user turn
+      const payloadMessages = nextMessages
+        .filter((m) => m.id !== "welcome-msg")
+        .map((m) => ({ role: m.role, content: m.content }));
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: abortControllerRef.current.signal,
         body: JSON.stringify({
-          messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+          messages: payloadMessages,
           conversationId,
           isEmpathetic: isEmpatheticMode,
         }),
