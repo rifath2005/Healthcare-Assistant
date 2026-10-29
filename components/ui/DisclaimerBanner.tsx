@@ -14,7 +14,7 @@ export function DisclaimerBanner() {
         <div className="flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
           <span>
-            <strong>Non-Diagnostic Advisory:</strong> This AI assistant provides general wellness information and evidence-grounded health literacy. It is not a certified diagnostic device. In medical emergencies, immediately dial <strong>911</strong> or <strong>988</strong>.
+            <strong>Non-Diagnostic Advisory:</strong> This AI assistant provides general wellness information and evidence-grounded health literacy. It is not a certified diagnostic device. In medical emergencies, immediately dial <strong>112</strong> or <strong>108</strong>.
           </span>
         </div>
         <button

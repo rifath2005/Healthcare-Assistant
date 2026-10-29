@@ -103,6 +103,7 @@ export async function POST(req: NextRequest) {
       startTime,
       endTime,
       attendeeEmail: patientEmail,
+      defaultMeetLink: doctorProfile?.meetLink || process.env.DEFAULT_GOOGLE_MEET_URL,
     });
 
     const activeMeetLink = isVirtual ? gcalResult.meetLink : null;

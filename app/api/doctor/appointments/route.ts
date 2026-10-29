@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
       let meetLink = appt.meet_link;
       if (consultationType === "virtual") {
         if (!meetLink || !/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}/i.test(meetLink)) {
-          meetLink = "https://meet.google.com/doy-knhq-mva";
+          meetLink = doctorProfile?.meetLink || process.env.DEFAULT_GOOGLE_MEET_URL || appt.meet_link;
         }
       }
 

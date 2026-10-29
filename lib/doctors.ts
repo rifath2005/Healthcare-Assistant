@@ -8,6 +8,7 @@ export interface DoctorProfile {
   bio: string;
   calendar_id: string;
   clinicalCode: string;
+  meetLink?: string;
 }
 
 export const CLINIC_DOCTORS: DoctorProfile[] = [

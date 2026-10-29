@@ -8,6 +8,7 @@ export interface CalendarEventPayload {
   startTime: string; // ISO string
   endTime: string; // ISO string
   attendeeEmail?: string;
+  defaultMeetLink?: string;
 }
 
 export interface CreatedCalendarEvent {
@@ -101,14 +102,18 @@ export async function createCalendarAppointment(
   payload: CalendarEventPayload
 ): Promise<CreatedCalendarEvent> {
   const calendar = getGoogleCalendarClient();
+  const fallbackMeetLink =
+    payload.defaultMeetLink ||
+    process.env.DEFAULT_GOOGLE_MEET_URL ||
+    (env as any).DEFAULT_GOOGLE_MEET_URL;
 
-  // If Service Account not configured, return deterministic simulated Google Calendar event
+  // If Service Account not configured, return permanent clinic link if present, or deterministic simulated Google Calendar event
   if (!calendar) {
     const simulatedEventId = `mock_gcal_${Date.now()}`;
-    const simulatedMeetCode = generateValidGoogleMeetCode();
+    const meetLink = fallbackMeetLink || `https://meet.google.com/${generateValidGoogleMeetCode()}`;
     return {
       eventId: simulatedEventId,
-      meetLink: `https://meet.google.com/${simulatedMeetCode}`,
+      meetLink,
       startTime: payload.startTime,
       endTime: payload.endTime,
     };
@@ -117,7 +122,7 @@ export async function createCalendarAppointment(
   try {
     const requestId = `meet_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     const consultationCode = generateValidGoogleMeetCode();
-    const dedicatedMeetLink = `https://meet.google.com/${consultationCode}`;
+    const dedicatedMeetLink = fallbackMeetLink || `https://meet.google.com/${consultationCode}`;
 
     const patientDesc = payload.attendeeEmail
       ? `${payload.description}\n\nPatient Email: ${payload.attendeeEmail}\nTelehealth Video Room: ${dedicatedMeetLink}`
@@ -174,11 +179,11 @@ export async function createCalendarAppointment(
     };
   } catch (error) {
     console.error("Error creating Google Calendar event:", error);
-    // Fallback gracefully so booking does not crash with valid 3-4-3 format
-    const fallbackCode = generateValidGoogleMeetCode();
+    // Fallback gracefully so booking does not crash with permanent clinic link if configured
+    const meetLink = fallbackMeetLink || `https://meet.google.com/${generateValidGoogleMeetCode()}`;
     return {
       eventId: `fallback_${Date.now()}`,
-      meetLink: `https://meet.google.com/${fallbackCode}`,
+      meetLink,
       startTime: payload.startTime,
       endTime: payload.endTime,
     };
