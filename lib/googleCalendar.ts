@@ -102,15 +102,19 @@ export async function createCalendarAppointment(
       Math.random().toString(36).substring(2, 5);
     const dedicatedMeetLink = `https://meet.google.com/${consultationCode}`;
 
+    const patientDesc = payload.attendeeEmail
+      ? `${payload.description}\n\nPatient Email: ${payload.attendeeEmail}\nTelehealth Video Room: ${dedicatedMeetLink}`
+      : `${payload.description}\n\nTelehealth Video Room: ${dedicatedMeetLink}`;
+
     let event: any;
     try {
-      // First attempt with native conferenceDataVersion (supported on Google Workspace domains)
+      // 1. Attempt with native conference & attendee invites (supported on Google Workspace domains)
       event = await calendar.events.insert({
         calendarId: payload.calendarId || "primary",
         conferenceDataVersion: 1,
         requestBody: {
           summary: payload.summary,
-          description: `${payload.description}\n\nTelehealth Video Room: ${dedicatedMeetLink}`,
+          description: patientDesc,
           location: dedicatedMeetLink,
           start: { dateTime: payload.startTime },
           end: { dateTime: payload.endTime },
@@ -123,18 +127,18 @@ export async function createCalendarAppointment(
           },
         },
       });
-    } catch (confError: any) {
-      // Standard service accounts on non-Workspace domains reject hangoutsMeet
-      // Fallback seamlessly to creating standard calendar event with dedicated meet link in location/description
+    } catch {
+      // 2. Standard Service Account mode: omit attendees and conference solution
+      // (Standard GCP Service Accounts cannot invite external attendees without domain-wide delegation).
+      // The patient receives their full confirmation with the meet link directly via Resend email.
       event = await calendar.events.insert({
         calendarId: payload.calendarId || "primary",
         requestBody: {
           summary: payload.summary,
-          description: `${payload.description}\n\nTelehealth Video Room: ${dedicatedMeetLink}`,
+          description: patientDesc,
           location: dedicatedMeetLink,
           start: { dateTime: payload.startTime },
           end: { dateTime: payload.endTime },
-          attendees: payload.attendeeEmail ? [{ email: payload.attendeeEmail }] : [],
         },
       });
     }
