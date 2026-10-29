@@ -45,6 +45,17 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     calendar_id: "primary",
     clinicalCode: "DR-LIN-204",
   },
+  {
+    id: "4ed011cc-c663-4573-84e7-4310735b63f9",
+    name: "Dr. Alex Rivera, MD",
+    specialty: "Dermatology & Skin Health",
+    email: "alex.rivera@healthcare.local",
+    clinicRoom: "Room 301 - Dermatology Center",
+    avatar_url: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=300",
+    bio: "Board-certified dermatologist specializing in clinical dermatology, inflammatory skin triage, and preventative skin health.",
+    calendar_id: "primary",
+    clinicalCode: "DR-RIVERA-301",
+  },
 ];
 
 export function getDoctorById(id: string): DoctorProfile | undefined {
