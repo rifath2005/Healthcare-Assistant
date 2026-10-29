@@ -38,18 +38,22 @@ export default function DoctorLoginPage() {
     setLoading(true);
 
     try {
-      // Simulate enterprise provider auth handshake
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const res = await fetch("/api/doctor/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-      const doctor = validateDoctorCredentials(email, password);
+      const data = await res.json();
 
-      if (!doctor) {
-        setAuthError("Invalid clinician credentials. Verify your provider work email or clinical code and security PIN.");
+      if (!res.ok || !data.doctor) {
+        setAuthError(data.error || "Invalid clinician credentials. Verify your provider work email or clinical code and security PIN.");
         toast.error("Authentication failed: Access Denied");
         setLoading(false);
         return;
       }
 
+      const doctor = data.doctor;
       localStorage.setItem("doctor_session", JSON.stringify(doctor));
       document.cookie = `doctor_id=${doctor.id}; path=/; max-age=86400; SameSite=Lax`;
 
