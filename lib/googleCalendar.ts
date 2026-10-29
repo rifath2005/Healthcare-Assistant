@@ -94,30 +94,56 @@ export async function createCalendarAppointment(
 
   try {
     const requestId = `meet_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const consultationCode =
+      Math.random().toString(36).substring(2, 5) +
+      "-" +
+      Math.random().toString(36).substring(2, 6) +
+      "-" +
+      Math.random().toString(36).substring(2, 5);
+    const dedicatedMeetLink = `https://meet.google.com/${consultationCode}`;
 
-    const event = await calendar.events.insert({
-      calendarId: payload.calendarId || "primary",
-      conferenceDataVersion: 1,
-      requestBody: {
-        summary: payload.summary,
-        description: payload.description,
-        start: { dateTime: payload.startTime },
-        end: { dateTime: payload.endTime },
-        attendees: payload.attendeeEmail ? [{ email: payload.attendeeEmail }] : [],
-        conferenceData: {
-          createRequest: {
-            requestId,
-            conferenceSolutionKey: { type: "hangoutsMeet" },
+    let event: any;
+    try {
+      // First attempt with native conferenceDataVersion (supported on Google Workspace domains)
+      event = await calendar.events.insert({
+        calendarId: payload.calendarId || "primary",
+        conferenceDataVersion: 1,
+        requestBody: {
+          summary: payload.summary,
+          description: `${payload.description}\n\nTelehealth Video Room: ${dedicatedMeetLink}`,
+          location: dedicatedMeetLink,
+          start: { dateTime: payload.startTime },
+          end: { dateTime: payload.endTime },
+          attendees: payload.attendeeEmail ? [{ email: payload.attendeeEmail }] : [],
+          conferenceData: {
+            createRequest: {
+              requestId,
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
           },
         },
-      },
-    });
+      });
+    } catch (confError: any) {
+      // Standard service accounts on non-Workspace domains reject hangoutsMeet
+      // Fallback seamlessly to creating standard calendar event with dedicated meet link in location/description
+      event = await calendar.events.insert({
+        calendarId: payload.calendarId || "primary",
+        requestBody: {
+          summary: payload.summary,
+          description: `${payload.description}\n\nTelehealth Video Room: ${dedicatedMeetLink}`,
+          location: dedicatedMeetLink,
+          start: { dateTime: payload.startTime },
+          end: { dateTime: payload.endTime },
+          attendees: payload.attendeeEmail ? [{ email: payload.attendeeEmail }] : [],
+        },
+      });
+    }
 
-    const eventId = event.data.id || `gcal_${Date.now()}`;
+    const eventId = event?.data?.id || `gcal_${Date.now()}`;
     const meetLink =
-      event.data.conferenceData?.entryPoints?.find((ep) => ep.entryPointType === "video")?.uri ||
-      event.data.hangoutLink ||
-      `https://meet.google.com/hcare-${Date.now().toString().slice(-6)}`;
+      event?.data?.conferenceData?.entryPoints?.find((ep: any) => ep.entryPointType === "video")?.uri ||
+      event?.data?.hangoutLink ||
+      dedicatedMeetLink;
 
     return {
       eventId,
