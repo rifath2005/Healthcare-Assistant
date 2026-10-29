@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { MessageBubble, type Citation } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { CrisisBanner } from "./CrisisBanner";
@@ -421,13 +422,21 @@ export function ChatContainer({
       )}
 
       {/* Footer Area: Sentiment badge + Chat Input */}
-      <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+      <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
         <SentimentIndicator
           mood={detectedMood}
           onOpenBreathing={() => setShowBreathing(true)}
           onOpenGrounding={() => setShowGrounding(true)}
         />
         <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+        <div className="text-center pt-0.5">
+          <Link
+            href="/terms"
+            className="text-[11px] text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors inline-flex items-center gap-1"
+          >
+            <span>Verified Medical Knowledge Base (CDC, MedlinePlus, WHO) • Terms & Policy</span>
+          </Link>
+        </div>
       </div>
 
       {/* Appointment Booking Modal */}

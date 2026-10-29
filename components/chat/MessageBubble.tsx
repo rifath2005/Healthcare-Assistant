@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { User, Bot, Copy, Check, ThumbsUp, ThumbsDown, ExternalLink, BookOpen } from "lucide-react";
+import { User, Bot, Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -29,7 +29,6 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<1 | -1 | null>(null);
-  const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
 
   const isUser = role === "user";
 
@@ -110,56 +109,6 @@ export function MessageBubble({
             >
               Book Doctor
             </button>
-          </div>
-        )}
-
-        {/* Citation Pills (Task 3.7) */}
-        {citations && citations.length > 0 && (
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 mt-2 space-y-2">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Verified Medical Sources:</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {citations.map((c) => (
-                <button
-                  key={c.index}
-                  type="button"
-                  onClick={() => setActiveCitation(activeCitation?.index === c.index ? null : c)}
-                  className={cn(
-                    "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors",
-                    activeCitation?.index === c.index
-                      ? "bg-emerald-600 text-white border-emerald-600"
-                      : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-500"
-                  )}
-                >
-                  <span className="font-bold">[{c.index}]</span>
-                  <span className="truncate max-w-[150px]">{c.title}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Citation Excerpt Popover */}
-            {activeCitation && (
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl text-xs space-y-1.5 animate-in fade-in">
-                <div className="flex items-center justify-between font-bold text-slate-900 dark:text-white">
-                  <span>
-                    [{activeCitation.index}] {activeCitation.title}
-                  </span>
-                  {activeCitation.source_url && (
-                    <a
-                      href={activeCitation.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 text-[11px]"
-                    >
-                      Source <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
-                <p className="text-slate-600 dark:text-slate-300 italic">{activeCitation.excerpt}</p>
-              </div>
-            )}
           </div>
         )}
 

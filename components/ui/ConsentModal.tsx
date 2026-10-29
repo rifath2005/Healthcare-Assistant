@@ -78,6 +78,9 @@ export function ConsentModal() {
           <p>
             <strong>3. Privacy & Data Minimization:</strong> Anonymous guest conversations are stored temporarily in your local browser. If you register or authenticate, clinical dialogues are encrypted and isolated via PostgreSQL Row-Level Security.
           </p>
+          <p>
+            <strong>4. Grounded in Verified Medical Sources:</strong> Educational health guidance is grounded in public clinical guidelines from the <strong>Centers for Disease Control and Prevention (CDC)</strong>, the <strong>National Library of Medicine (MedlinePlus / NIH)</strong>, and the <strong>World Health Organization (WHO)</strong>.
+          </p>
         </div>
 
         <div className="flex items-center gap-2 pt-2">

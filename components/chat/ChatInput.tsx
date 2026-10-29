@@ -23,6 +23,20 @@ export function ChatInput({
   const [content, setContent] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Auto-focus on initial mount
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
+  // Re-focus whenever assistant finishes responding
+  useEffect(() => {
+    if (!isLoading && !disabled) {
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+      });
+    }
+  }, [isLoading, disabled]);
+
   // Auto-resize textarea height as text grows
   useEffect(() => {
     if (textareaRef.current) {
@@ -35,36 +49,52 @@ export function ChatInput({
     if (e) e.preventDefault();
     if (!content.trim() || isLoading || disabled) return;
 
-    onSendMessage(content.trim());
+    const messageText = content.trim();
     setContent("");
 
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
+      textareaRef.current.focus();
     }
+
+    onSendMessage(messageText);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      if (!isLoading) {
+        handleSubmit();
+      }
     }
   };
 
   const handleVoiceTranscript = (transcript: string) => {
     setContent((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
   };
 
   return (
-    <div className="relative border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm focus-within:ring-2 focus-within:ring-emerald-500/50 focus-within:border-emerald-500 transition-all p-2.5">
+    <div
+      onClick={() => textareaRef.current?.focus()}
+      className="relative border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm focus-within:ring-2 focus-within:ring-emerald-500/50 focus-within:border-emerald-500 transition-all p-2.5 cursor-text"
+    >
       <textarea
         ref={textareaRef}
         rows={1}
         value={content}
         onChange={(e) => setContent(e.target.value.slice(0, MAX_CHARACTERS))}
         onKeyDown={handleKeyDown}
-        disabled={disabled || isLoading}
-        placeholder={placeholder}
-        className="w-full resize-none bg-transparent px-2.5 py-1 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none max-h-44 disabled:opacity-50"
+        disabled={disabled}
+        readOnly={isLoading}
+        placeholder={isLoading ? "Healthcare Assistant is replying..." : placeholder}
+        className={cn(
+          "w-full resize-none bg-transparent px-2.5 py-1 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none max-h-44",
+          isLoading && "cursor-wait opacity-70",
+          disabled && "opacity-50 cursor-not-allowed"
+        )}
       />
 
       <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/60 mt-1 px-1">
