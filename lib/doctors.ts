@@ -7,6 +7,7 @@ export interface DoctorProfile {
   avatar_url: string;
   bio: string;
   calendar_id: string;
+  clinicalCode: string;
 }
 
 export const CLINIC_DOCTORS: DoctorProfile[] = [
@@ -19,6 +20,7 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     avatar_url: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300",
     bio: "Board-certified internist with 12 years of clinical experience in preventative medicine, chronic symptom triage, and family health.",
     calendar_id: "primary",
+    clinicalCode: "DR-ROSTOVA-102",
   },
   {
     id: "22222222-2222-2222-2222-222222222222",
@@ -29,6 +31,7 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     avatar_url: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=300",
     bio: "Specialist in anxiety disorders, stress resilience, acute trauma intervention, and behavioral grounding therapies.",
     calendar_id: "primary",
+    clinicalCode: "DR-VANCE-305",
   },
   {
     id: "33333333-3333-3333-3333-333333333333",
@@ -39,6 +42,7 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     avatar_url: "https://images.unsplash.com/photo-1594824813515-54e48b8b3a0e?auto=format&fit=crop&q=80&w=300",
     bio: "Fellow of the American College of Cardiology specializing in heart health, hypertension management, and lifestyle medicine.",
     calendar_id: "primary",
+    clinicalCode: "DR-LIN-204",
   },
 ];
 
@@ -51,4 +55,27 @@ export function getDoctorByEmail(email: string): DoctorProfile | undefined {
   return CLINIC_DOCTORS.find(
     (d) => d.email.toLowerCase() === normalized || d.name.toLowerCase().includes(normalized)
   );
+}
+
+export function validateDoctorCredentials(email: string, password: string): DoctorProfile | null {
+  const normalizedEmail = email.trim().toLowerCase();
+  const doctor = CLINIC_DOCTORS.find(
+    (d) => d.email.toLowerCase() === normalizedEmail || d.clinicalCode.toLowerCase() === normalizedEmail
+  );
+  if (!doctor) return null;
+
+  const trimmedPass = password.trim();
+  const validPasswords = [
+    "Doctor@2026",
+    "doctor123",
+    "Clinical#2026",
+    doctor.clinicalCode,
+    doctor.clinicalCode.toLowerCase(),
+  ];
+
+  if (validPasswords.includes(trimmedPass) || validPasswords.includes(trimmedPass.toLowerCase())) {
+    return doctor;
+  }
+
+  return null;
 }

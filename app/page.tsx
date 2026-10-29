@@ -19,7 +19,6 @@ import {
   LogOut,
   User,
   BookOpen,
-  Stethoscope,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -147,15 +146,6 @@ export default function HomePage() {
               >
                 <Calendar className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span className="hidden sm:inline">My Appointments</span>
-              </Link>
-
-              <Link
-                href="/doctor/login"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/40 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold transition-colors"
-                title="Doctor & Clinician Management Portal"
-              >
-                <Stethoscope className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="hidden sm:inline">Doctor Portal</span>
               </Link>
 
               <Link

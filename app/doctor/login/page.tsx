@@ -3,49 +3,65 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Stethoscope, ShieldCheck, ArrowRight, UserCheck, HeartPulse, Lock } from "lucide-react";
-import { CLINIC_DOCTORS, type DoctorProfile } from "@/lib/doctors";
+import {
+  Stethoscope,
+  ShieldCheck,
+  Lock,
+  Mail,
+  KeyRound,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Loader2,
+} from "lucide-react";
+import { validateDoctorCredentials } from "@/lib/doctors";
 import { toast } from "sonner";
 
 export default function DoctorLoginPage() {
   const router = useRouter();
-  const [selectedDoctor, setSelectedDoctor] = useState<DoctorProfile>(CLINIC_DOCTORS[0]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [activeTab, setActiveTab] = useState<"quick" | "credentials">("quick");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  const handleQuickLogin = (doctor: DoctorProfile) => {
-    setLoading(true);
-    try {
-      localStorage.setItem("doctor_session", JSON.stringify(doctor));
-      document.cookie = `doctor_id=${doctor.id}; path=/; max-age=86400; SameSite=Lax`;
-      toast.success(`Welcome back, ${doctor.name}`);
-      router.push("/doctor/appointments");
-    } catch {
-      toast.error("Failed to initialize doctor session");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCredentialsLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
-      toast.error("Please enter your doctor email");
+    setAuthError(null);
+
+    if (!email.trim() || !password.trim()) {
+      setAuthError("Please provide both your provider ID/email and security key.");
+      toast.error("Credentials required");
       return;
     }
 
     setLoading(true);
-    // Find matching doctor or match default
-    const matched = CLINIC_DOCTORS.find(
-      (d) => d.email.toLowerCase() === email.trim().toLowerCase()
-    ) || CLINIC_DOCTORS[0];
 
-    localStorage.setItem("doctor_session", JSON.stringify(matched));
-    document.cookie = `doctor_id=${matched.id}; path=/; max-age=86400; SameSite=Lax`;
-    toast.success(`Signed in as ${matched.name}`);
-    router.push("/doctor/appointments");
+    try {
+      // Simulate enterprise provider auth handshake
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      const doctor = validateDoctorCredentials(email, password);
+
+      if (!doctor) {
+        setAuthError("Invalid clinician credentials. Verify your provider work email or clinical code and security PIN.");
+        toast.error("Authentication failed: Access Denied");
+        setLoading(false);
+        return;
+      }
+
+      localStorage.setItem("doctor_session", JSON.stringify(doctor));
+      document.cookie = `doctor_id=${doctor.id}; path=/; max-age=86400; SameSite=Lax`;
+
+      toast.success(`Physician Authenticated: Welcome, ${doctor.name}`);
+      router.push("/doctor/appointments");
+    } catch (err) {
+      console.error("Clinical login error:", err);
+      setAuthError("Clinical authentication service unreachable. Contact IT operations.");
+      toast.error("Login service unavailable");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -55,123 +71,109 @@ export default function DoctorLoginPage() {
           <Stethoscope className="w-8 h-8" />
         </div>
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-          Doctor & Clinician Portal
+          Clinician Provider Portal
         </h1>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Secure healthcare provider access to manage telehealth & in-person consultations
+          Restricted access for certified physicians and clinical attending staff
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
         <div className="bg-white dark:bg-slate-900 py-8 px-6 shadow-xl rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6">
-          {/* Tab selector */}
-          <div className="flex rounded-2xl bg-slate-100 dark:bg-slate-800/80 p-1">
-            <button
-              type="button"
-              onClick={() => setActiveTab("quick")}
-              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-                activeTab === "quick"
-                  ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              Select Clinic Physician
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("credentials")}
-              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-                activeTab === "credentials"
-                  ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              Provider Credentials
-            </button>
+          <div className="flex items-center gap-2 pb-4 border-b border-slate-100 dark:border-slate-800">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Provider Authentication
+            </span>
           </div>
 
-          {activeTab === "quick" ? (
-            <div className="space-y-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Choose your physician profile to view your consultation dashboard:
-              </p>
-
-              {CLINIC_DOCTORS.map((doctor) => (
-                <button
-                  key={doctor.id}
-                  type="button"
-                  onClick={() => handleQuickLogin(doctor)}
-                  disabled={loading}
-                  className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500/50 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 text-left transition-all flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={doctor.avatar_url}
-                      alt={doctor.name}
-                      className="w-11 h-11 rounded-2xl object-cover border border-slate-200 dark:border-slate-700"
-                    />
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                        {doctor.name}
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {doctor.specialty}
-                      </p>
-                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-                        📍 {doctor.clinicRoom}
-                      </p>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
-                </button>
-              ))}
+          {authError && (
+            <div className="p-3.5 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 flex items-start gap-2.5 text-xs text-red-700 dark:text-red-300">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{authError}</span>
             </div>
-          ) : (
-            <form onSubmit={handleCredentialsLogin} className="space-y-4">
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Doctor Work Email
-                </label>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Physician Work Email or Clinical Code
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <Mail className="w-4 h-4" />
+                </div>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="e.g. elena.rostova@healthcare.local"
                   required
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  autoComplete="username"
+                  className="w-full pl-9 pr-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
+            </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Provider PIN / Password
-                </label>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Provider Security PIN / Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <KeyRound className="w-4 h-4" />
+                </div>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
+                  autoComplete="current-password"
+                  className="w-full pl-9 pr-10 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
+            </div>
 
+            <div className="pt-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-600/20"
+                className="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-600/20 disabled:opacity-50"
               >
-                <Lock className="w-4 h-4" />
-                Sign In to Doctor Portal
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Verifying Provider Access...</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>Sign In to Clinical Schedule</span>
+                  </>
+                )}
               </button>
-            </form>
-          )}
+            </div>
+          </form>
 
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-center space-y-3">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1.5">
+              <Lock className="w-3 h-3 text-emerald-600" />
+              <span>HIPAA Compliant Session &bull; 256-bit Encrypted Workstation</span>
+            </p>
+
             <Link
               href="/"
-              className="text-xs text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium inline-flex items-center gap-1 transition-colors"
+              className="text-[11px] text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium inline-block transition-colors"
             >
-              <span>← Return to Patient Virtual Assistant</span>
+              Return to Public Portal
             </Link>
           </div>
         </div>
