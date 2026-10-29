@@ -225,10 +225,8 @@ export default function UserAppointmentsPage() {
                   {!isCancelled && (
                     <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                       {appt.meet_link && (
-                        <a
-                          href={appt.meet_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <Link
+                          href={`/consultation/${appt.id}`}
                           className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs ${
                             isLiveNow
                               ? "bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500 ring-offset-2 animate-pulse"
@@ -236,8 +234,8 @@ export default function UserAppointmentsPage() {
                           }`}
                         >
                           <Video className="w-3.5 h-3.5" />
-                          {isLiveNow ? "🔴 Join Live Call (Google Meet)" : "Join Google Meet"}
-                        </a>
+                          {isLiveNow ? "🔴 Join Live Telehealth Call" : "Join Video Consultation"}
+                        </Link>
                       )}
                       <button
                         type="button"

@@ -478,12 +478,10 @@ export default function DoctorAppointmentsPage() {
                         </button>
                       )}
 
-                      {/* Google Meet Link (for virtual) */}
-                      {isVirtual && appt.meet_link && !isCompleted && (
-                        <a
-                          href={appt.meet_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                      {/* Telehealth Room Link (for virtual) */}
+                      {isVirtual && !isCompleted && (
+                        <Link
+                          href={`/consultation/${appt.id}`}
                           className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs ${
                             isLiveNow
                               ? "bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500 ring-offset-2 animate-pulse"
@@ -491,8 +489,8 @@ export default function DoctorAppointmentsPage() {
                           }`}
                         >
                           <Video className="w-3.5 h-3.5" />
-                          {isLiveNow ? "🔴 Launch Live Google Meet" : "Join Google Meet"}
-                        </a>
+                          {isLiveNow ? "🔴 Join Live Telehealth Call" : "Launch Telehealth Room"}
+                        </Link>
                       )}
 
                       {/* Complete Consultation Button */}
