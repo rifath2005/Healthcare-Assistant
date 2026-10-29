@@ -57,7 +57,14 @@ export default function UserAppointmentsPage() {
         .order("start_time", { ascending: true });
 
       if (!error && data) {
-        setAppointments(data);
+        const sanitized = data.map((appt: any) => {
+          let meetLink = appt.meet_link;
+          if (meetLink && !/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}/i.test(meetLink)) {
+            meetLink = "https://meet.google.com/doy-knhq-mva";
+          }
+          return { ...appt, meet_link: meetLink };
+        });
+        setAppointments(sanitized);
       }
     } catch (e) {
       console.warn("Failed to load appointments:", e);

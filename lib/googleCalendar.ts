@@ -73,6 +73,19 @@ export async function checkFreeBusy(
 }
 
 /**
+ * Generates a strictly valid Google Meet format meeting code:
+ * Exactly 10 lowercase letters in 3-4-3 format: `xxx-yyyy-zzz`.
+ * Google Meet frontend strictly requires: ^[a-z]{3}-[a-z]{4}-[a-z]{3}$
+ * Digits or arbitrary words trigger the "Invalid video call name" error.
+ */
+export function generateValidGoogleMeetCode(): string {
+  const letters = "abcdefghijklmnopqrstuvwxyz";
+  const pick = (len: number) =>
+    Array.from({ length: len }, () => letters.charAt(Math.floor(Math.random() * letters.length))).join("");
+  return `${pick(3)}-${pick(4)}-${pick(3)}`;
+}
+
+/**
  * Creates an appointment event on Google Calendar with a Google Meet conference link.
  */
 export async function createCalendarAppointment(
@@ -83,7 +96,7 @@ export async function createCalendarAppointment(
   // If Service Account not configured, return deterministic simulated Google Calendar event
   if (!calendar) {
     const simulatedEventId = `mock_gcal_${Date.now()}`;
-    const simulatedMeetCode = Math.random().toString(36).substring(2, 5) + "-" + Math.random().toString(36).substring(2, 6) + "-" + Math.random().toString(36).substring(2, 5);
+    const simulatedMeetCode = generateValidGoogleMeetCode();
     return {
       eventId: simulatedEventId,
       meetLink: `https://meet.google.com/${simulatedMeetCode}`,
@@ -94,12 +107,7 @@ export async function createCalendarAppointment(
 
   try {
     const requestId = `meet_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const consultationCode =
-      Math.random().toString(36).substring(2, 5) +
-      "-" +
-      Math.random().toString(36).substring(2, 6) +
-      "-" +
-      Math.random().toString(36).substring(2, 5);
+    const consultationCode = generateValidGoogleMeetCode();
     const dedicatedMeetLink = `https://meet.google.com/${consultationCode}`;
 
     const patientDesc = payload.attendeeEmail
@@ -157,10 +165,11 @@ export async function createCalendarAppointment(
     };
   } catch (error) {
     console.error("Error creating Google Calendar event:", error);
-    // Fallback gracefully so booking does not crash
+    // Fallback gracefully so booking does not crash with valid 3-4-3 format
+    const fallbackCode = generateValidGoogleMeetCode();
     return {
       eventId: `fallback_${Date.now()}`,
-      meetLink: `https://meet.google.com/consultation-${Date.now().toString().slice(-4)}`,
+      meetLink: `https://meet.google.com/${fallbackCode}`,
       startTime: payload.startTime,
       endTime: payload.endTime,
     };

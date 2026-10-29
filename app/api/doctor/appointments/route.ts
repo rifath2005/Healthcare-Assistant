@@ -52,9 +52,17 @@ export async function GET(req: NextRequest) {
       // Match clinic room
       const doctorProfile = CLINIC_DOCTORS.find((d) => d.id === appt.doctor_id);
 
+      let meetLink = appt.meet_link;
+      if (consultationType === "virtual") {
+        if (!meetLink || !/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}/i.test(meetLink)) {
+          meetLink = "https://meet.google.com/doy-knhq-mva";
+        }
+      }
+
       return {
         ...appt,
         consultationType,
+        meet_link: meetLink,
         clinicRoom: doctorProfile?.clinicRoom || "HealthCare Clinic Center, Room 102",
         decryptedNotes,
         patientName: appt.profiles?.full_name || "Patient",
