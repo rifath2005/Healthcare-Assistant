@@ -6,12 +6,16 @@ import { encryptClinicalText } from "@/lib/encryption";
 import { formatAppointmentTime } from "@/lib/timezone";
 import { z } from "zod";
 
+import { getDoctorById } from "@/lib/doctors";
+import { sendDualAppointmentBookingEmails } from "@/lib/resend";
+
 export const runtime = "nodejs";
 
 const bookAppointmentSchema = z.object({
   doctorId: z.string().uuid("Invalid Doctor UUID"),
   startTime: z.string().datetime({ message: "Invalid start time ISO format" }),
   endTime: z.string().datetime({ message: "Invalid end time ISO format" }),
+  consultationType: z.enum(["virtual", "direct"]).optional().default("virtual"),
   patientNotes: z.string().max(1000).optional().default(""),
   timezone: z.string().optional().default("UTC"),
 });
@@ -45,7 +49,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { doctorId, startTime, endTime, patientNotes, timezone } = parseResult.data;
+    const { doctorId, startTime, endTime, consultationType, patientNotes, timezone } = parseResult.data;
+    const isVirtual = consultationType !== "direct";
 
     // 1. Fetch Doctor details
     const { data: doctor, error: docError } = await supabase
@@ -57,6 +62,10 @@ export async function POST(req: NextRequest) {
     if (docError || !doctor) {
       return NextResponse.json({ error: "Selected physician not found" }, { status: 404 });
     }
+
+    const doctorProfile = getDoctorById(doctorId);
+    const doctorEmail = doctorProfile?.email || "dr.clinic@healthcare.local";
+    const clinicRoom = doctorProfile?.clinicRoom || "HealthCare Clinic Center, Room 102";
 
     // 2. Fetch User Profile
     const { data: profile } = await supabase
@@ -85,18 +94,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Create Google Calendar Event with Meet Link
+    // 4. Create Google Calendar Event
+    // If virtual: includes meet link. If direct: includes clinic room location.
     const gcalResult = await createCalendarAppointment({
       calendarId: doctor.calendar_id,
-      summary: `Consultation: ${patientName} & ${doctor.name}`,
-      description: `Telehealth medical consultation.\nPhysician: ${doctor.name} (${doctor.specialty})\nPatient: ${patientName}\nNotes: ${patientNotes || "None"}`,
+      summary: `${isVirtual ? 'Virtual' : 'Direct In-Person'} Consultation: ${patientName} & ${doctor.name}`,
+      description: `${isVirtual ? 'Virtual Telehealth Consultation' : 'Direct In-Person Clinic Consultation'}\nPhysician: ${doctor.name} (${doctor.specialty})\nPatient: ${patientName}\nMode: ${isVirtual ? 'Virtual (Google Meet)' : `In-Person (${clinicRoom})`}\nNotes: ${patientNotes || "None"}`,
       startTime,
       endTime,
       attendeeEmail: patientEmail,
     });
 
+    const activeMeetLink = isVirtual ? gcalResult.meetLink : null;
+
     // 5. Encrypt sensitive clinical notes before writing to database
-    const encryptedNotes = patientNotes ? encryptClinicalText(patientNotes) : "";
+    const modeTag = `[MODE: ${consultationType.toUpperCase()}]`;
+    const taggedNotes = patientNotes ? `${modeTag} ${patientNotes}` : modeTag;
+    const encryptedNotes = encryptClinicalText(taggedNotes);
 
     // 6. Insert Appointment Record into Supabase
     const { data: appointment, error: insertError } = await supabase
@@ -110,7 +124,7 @@ export async function POST(req: NextRequest) {
         end_time: endTime,
         status: "confirmed",
         google_event_id: gcalResult.eventId,
-        meet_link: gcalResult.meetLink,
+        meet_link: activeMeetLink,
         patient_notes: encryptedNotes,
       })
       .select()
@@ -124,15 +138,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 7. Dispatch Confirmation Email via Resend
+    // 7. Dispatch Mandatory Dual Confirmation Emails (to Patient AND Doctor)
     const formattedDate = formatAppointmentTime(startTime, timezone);
-    await sendAppointmentConfirmation({
+    await sendDualAppointmentBookingEmails({
       to: patientEmail,
       patientName,
+      patientEmail,
       doctorName: doctor.name,
+      doctorEmail,
       doctorSpecialty: doctor.specialty,
       startTime: formattedDate,
-      meetLink: gcalResult.meetLink,
+      consultationType,
+      clinicRoom,
+      meetLink: activeMeetLink || undefined,
       notes: patientNotes,
     });
 
@@ -145,8 +163,9 @@ export async function POST(req: NextRequest) {
         startTime,
         endTime,
         formattedTime: formattedDate,
-        meetLink: gcalResult.meetLink,
-        status: "confirmed",
+        consultationType,
+        clinicRoom: !isVirtual ? clinicRoom : undefined,
+        meetLink: activeMeetLink,
       },
     });
   } catch (error) {

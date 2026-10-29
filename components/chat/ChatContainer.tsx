@@ -68,6 +68,7 @@ export function ChatContainer({
   const [showBreathing, setShowBreathing] = useState(false);
   const [showGrounding, setShowGrounding] = useState(false);
   const [showBooking, setShowBooking] = useState(false);
+  const [bookingMode, setBookingMode] = useState<"virtual" | "direct">("virtual");
   const [showExport, setShowExport] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -391,7 +392,10 @@ export function ChatContainer({
             role={m.role}
             content={m.content}
             citations={m.citations}
-            onOpenBookingModal={() => setShowBooking(true)}
+            onOpenBookingModal={(mode) => {
+              if (mode) setBookingMode(mode);
+              setShowBooking(true);
+            }}
           />
         ))}
 
@@ -442,6 +446,7 @@ export function ChatContainer({
       {/* Appointment Booking Modal */}
       <BookingModal
         isOpen={showBooking}
+        initialMode={bookingMode}
         onClose={() => setShowBooking(false)}
       />
 

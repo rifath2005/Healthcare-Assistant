@@ -47,6 +47,7 @@ export async function middleware(request: NextRequest) {
     isAuthRoute ||
     pathname === "/terms" ||
     pathname === "/privacy" ||
+    pathname.startsWith("/doctor") ||
     pathname.startsWith("/auth/callback");
 
   const isAdminRoute = pathname.startsWith("/admin");

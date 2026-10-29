@@ -161,9 +161,20 @@ export default function UserAppointmentsPage() {
                       <h3 className="text-base font-bold text-slate-900 dark:text-white">
                         {appt.doctor_name}
                       </h3>
-                      <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                        {appt.doctor_specialty}
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                          {appt.doctor_specialty}
+                        </p>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide flex items-center gap-1 ${
+                            appt.meet_link
+                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                              : "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                          }`}
+                        >
+                          {appt.meet_link ? "🌐 Virtual Meet" : "🏥 Direct In-Person"}
+                        </span>
+                      </div>
                     </div>
                     <span
                       className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${
@@ -181,6 +192,12 @@ export default function UserAppointmentsPage() {
                       <Clock className="w-4 h-4 text-slate-400" />
                       <span>{formatAppointmentTime(appt.start_time)}</span>
                     </div>
+
+                    {!appt.meet_link && !isCancelled && (
+                      <div className="p-2.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 text-blue-800 dark:text-blue-200 text-xs">
+                        📍 <strong>In-Person Location:</strong> HealthCare Clinic Center, Suite 204. Please arrive 10 minutes before your scheduled appointment.
+                      </div>
+                    )}
                   </div>
 
                   {!isCancelled && (

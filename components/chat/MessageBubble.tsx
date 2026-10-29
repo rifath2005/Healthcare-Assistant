@@ -17,7 +17,7 @@ export interface MessageBubbleProps {
   role: "user" | "assistant" | "system";
   content: string;
   citations?: Citation[];
-  onOpenBookingModal?: () => void;
+  onOpenBookingModal?: (mode?: "virtual" | "direct") => void;
 }
 
 export function MessageBubble({
@@ -98,22 +98,31 @@ export function MessageBubble({
 
         {/* Interactive Appointment Trigger Card inside chat if suggested */}
         {suggestsBooking && onOpenBookingModal && (
-          <div className="mt-3 p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center justify-between gap-3">
+          <div className="mt-3 p-3.5 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl space-y-2.5">
             <div>
               <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
                 Ready to consult a physician?
               </p>
               <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
-                Book a 30-minute telehealth consultation with certified doctors.
+                Schedule a consultation with our clinic doctors:
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onOpenBookingModal}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors shrink-0"
-            >
-              Book Doctor
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenBookingModal("virtual")}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors flex items-center gap-1.5"
+              >
+                <span>🌐 Book Virtual (Meet)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenBookingModal("direct")}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors flex items-center gap-1.5"
+              >
+                <span>🏥 Direct In-Person Visit</span>
+              </button>
+            </div>
           </div>
         )}
 

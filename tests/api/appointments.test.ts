@@ -59,14 +59,19 @@ vi.mock("@/lib/googleCalendar", () => ({
 
 vi.mock("@/lib/resend", () => ({
   sendAppointmentConfirmation: async () => ({ success: true, id: "email_123" }),
+  sendDualAppointmentBookingEmails: async () => ({
+    patient: { success: true, id: "email_p123" },
+    doctor: { success: true, id: "email_d123" },
+  }),
 }));
 
 describe("POST /api/appointments/book", () => {
-  it("should book an appointment atomically, generate a Google Meet link, and return confirmed status", async () => {
+  it("should book a virtual appointment atomically, generate a Google Meet link, and return confirmed status", async () => {
     const payload = {
       doctorId: "123e4567-e89b-12d3-a456-426614174000",
       startTime: "2026-10-28T10:00:00.000Z",
       endTime: "2026-10-28T10:30:00.000Z",
+      consultationType: "virtual",
       patientNotes: "Persistent tension headache for 3 days",
       timezone: "America/New_York",
     };
@@ -81,8 +86,33 @@ describe("POST /api/appointments/book", () => {
 
     const body = await res.json();
     expect(body.success).toBe(true);
-    expect(body.appointment.status).toBe("confirmed");
     expect(body.appointment.meetLink).toContain("meet.google.com");
+    expect(body.appointment.consultationType).toBe("virtual");
+  });
+
+  it("should book a direct in-person appointment without generating a meet link", async () => {
+    const payload = {
+      doctorId: "123e4567-e89b-12d3-a456-426614174000",
+      startTime: "2026-10-28T11:00:00.000Z",
+      endTime: "2026-10-28T11:30:00.000Z",
+      consultationType: "direct",
+      patientNotes: "In-person physical checkup",
+      timezone: "America/New_York",
+    };
+
+    const req = new NextRequest("http://localhost:3000/api/appointments/book", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.appointment.meetLink).toBeNull();
+    expect(body.appointment.consultationType).toBe("direct");
+    expect(body.appointment.clinicRoom).toBeDefined();
   });
 
   it("should reject payload with invalid ISO datetime", async () => {

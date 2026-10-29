@@ -19,15 +19,26 @@ interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialSymptoms?: string;
+  initialMode?: "virtual" | "direct";
 }
 
-export function BookingModal({ isOpen, onClose, initialSymptoms = "" }: BookingModalProps) {
+export function BookingModal({
+  isOpen,
+  onClose,
+  initialSymptoms = "",
+  initialMode = "virtual",
+}: BookingModalProps) {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
+  const [consultationType, setConsultationType] = useState<"virtual" | "direct">(initialMode);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [patientNotes, setPatientNotes] = useState(initialSymptoms);
   const [loading, setLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (initialMode) setConsultationType(initialMode);
+  }, [initialMode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -60,6 +71,7 @@ export function BookingModal({ isOpen, onClose, initialSymptoms = "" }: BookingM
           doctorId: selectedDoctorId,
           startTime: selectedSlot.start,
           endTime: selectedSlot.end,
+          consultationType,
           patientNotes,
           timezone: getClientTimezone(),
         }),
@@ -102,10 +114,10 @@ export function BookingModal({ isOpen, onClose, initialSymptoms = "" }: BookingM
             </div>
             <div className="space-y-1">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                Consultation Confirmed!
+                {bookingSuccess.consultationType === "direct" ? "In-Person Visit Confirmed!" : "Virtual Consultation Confirmed!"}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                A calendar invitation and confirmation email have been dispatched.
+                Confirmation emails have been dispatched to both you and the doctor.
               </p>
             </div>
 
@@ -116,6 +128,23 @@ export function BookingModal({ isOpen, onClose, initialSymptoms = "" }: BookingM
               <p>
                 <strong>Scheduled:</strong> {bookingSuccess.formattedTime}
               </p>
+              <p>
+                <strong>Consultation Mode:</strong>{" "}
+                <span
+                  className={`font-bold px-2 py-0.5 rounded-full text-[10px] uppercase ${
+                    bookingSuccess.consultationType === "direct"
+                      ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                      : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                  }`}
+                >
+                  {bookingSuccess.consultationType === "direct" ? "🏥 Direct In-Person Visit" : "🌐 Virtual (Google Meet)"}
+                </span>
+              </p>
+              {bookingSuccess.clinicRoom && (
+                <p>
+                  <strong>Clinic Location:</strong> {bookingSuccess.clinicRoom}
+                </p>
+              )}
               {bookingSuccess.meetLink && (
                 <div className="pt-2">
                   <a
@@ -146,20 +175,20 @@ export function BookingModal({ isOpen, onClose, initialSymptoms = "" }: BookingM
             <div className="space-y-1">
               <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
                 <Stethoscope className="w-3.5 h-3.5" />
-                Telehealth Consultation
+                Physician Consultation
               </div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                 Schedule a Doctor Consultation
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Connect virtually with a certified healthcare provider via Google Meet
+                Choose between a Virtual Telehealth video consultation or Direct In-Person clinic visit.
               </p>
             </div>
 
             {/* Select Doctor */}
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Choose Healthcare Provider
+                1. Choose Healthcare Provider
               </label>
               <select
                 value={selectedDoctorId}
@@ -177,19 +206,68 @@ export function BookingModal({ isOpen, onClose, initialSymptoms = "" }: BookingM
               </select>
             </div>
 
+            {/* Consultation Mode (Virtual vs Direct) */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                2. Consultation Mode
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConsultationType("virtual")}
+                  className={`p-3 rounded-2xl border text-left transition-all ${
+                    consultationType === "virtual"
+                      ? "border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 ring-1 ring-emerald-500 shadow-xs"
+                      : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-bold text-xs text-emerald-700 dark:text-emerald-400">
+                    <Video className="w-3.5 h-3.5" />
+                    <span>Virtual Telehealth</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                    Google Meet link created and sent to your email.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setConsultationType("direct")}
+                  className={`p-3 rounded-2xl border text-left transition-all ${
+                    consultationType === "direct"
+                      ? "border-blue-600 bg-blue-50/60 dark:bg-blue-950/40 text-blue-950 dark:text-blue-200 ring-1 ring-blue-500 shadow-xs"
+                      : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-bold text-xs text-blue-700 dark:text-blue-400">
+                    <Stethoscope className="w-3.5 h-3.5" />
+                    <span>Direct In-Person</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                    Direct meeting at our clinic room with physician.
+                  </p>
+                </button>
+              </div>
+            </div>
+
             {/* Slot Picker */}
             {selectedDoctorId && (
-              <SlotPicker
-                doctorId={selectedDoctorId}
-                selectedSlot={selectedSlot}
-                onSelectSlot={setSelectedSlot}
-              />
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  3. Select Date & Time Slot
+                </label>
+                <SlotPicker
+                  doctorId={selectedDoctorId}
+                  selectedSlot={selectedSlot}
+                  onSelectSlot={setSelectedSlot}
+                />
+              </div>
             )}
 
             {/* Primary Symptoms / Notes */}
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Primary Symptoms & Clinical Notes (Encrypted at rest)
+                4. Primary Symptoms & Clinical Notes (Encrypted)
               </label>
               <textarea
                 rows={2}
@@ -209,7 +287,7 @@ export function BookingModal({ isOpen, onClose, initialSymptoms = "" }: BookingM
                 className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-emerald-600/20"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
-                Confirm & Sync Google Calendar
+                Confirm & Sync Consultation
               </button>
             </div>
           </>
