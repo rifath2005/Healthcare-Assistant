@@ -17,7 +17,20 @@ export interface MessageBubbleProps {
   role: "user" | "assistant" | "system";
   content: string;
   citations?: Citation[];
+  createdAt?: string;
+  isTyping?: boolean;
   onOpenBookingModal?: (mode?: "virtual" | "direct") => void;
+}
+
+function formatMessageTime(isoString?: string): string | null {
+  if (!isoString) return null;
+  try {
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return null;
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return null;
+  }
 }
 
 export function MessageBubble({
@@ -25,6 +38,8 @@ export function MessageBubble({
   role,
   content,
   citations = [],
+  createdAt,
+  isTyping,
   onOpenBookingModal,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
@@ -36,6 +51,7 @@ export function MessageBubble({
     text.replace(/\s*\[\d+\](?:\s*,\s*\[\d+\])*/g, "");
 
   const displayContent = cleanText(content);
+  const timeStr = formatMessageTime(createdAt);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(displayContent);
@@ -94,7 +110,32 @@ export function MessageBubble({
             : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-xs"
         )}
       >
-        <div className="whitespace-pre-wrap break-words">{displayContent}</div>
+        {/* Typing indicator when waiting for stream */}
+        {!isUser && (!displayContent.trim() || isTyping) && (
+          <div
+            className="flex items-center gap-1.5 py-1 text-slate-500 dark:text-slate-400"
+            role="status"
+            aria-label="Assistant is formulating response"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-bounce [animation-delay:-0.3s]" />
+            <span className="w-2 h-2 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-bounce [animation-delay:-0.15s]" />
+            <span className="w-2 h-2 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-bounce" />
+            <span className="text-xs ml-1 font-medium text-emerald-700 dark:text-emerald-400">
+              Consulting medical guidelines...
+            </span>
+          </div>
+        )}
+
+        {displayContent.trim() && (
+          <div className="whitespace-pre-wrap break-words">{displayContent}</div>
+        )}
+
+        {/* User timestamp */}
+        {isUser && timeStr && (
+          <div className="text-[10px] text-emerald-100/80 text-right select-none pt-0.5">
+            {timeStr}
+          </div>
+        )}
 
         {/* Interactive Appointment Trigger Card inside chat if suggested */}
         {suggestsBooking && onOpenBookingModal && (
@@ -126,10 +167,10 @@ export function MessageBubble({
           </div>
         )}
 
-        {/* Footer controls (copy, feedback) */}
-        {!isUser && (
+        {/* Footer controls (copy, feedback, timestamp) for assistant */}
+        {!isUser && displayContent.trim() && (
           <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/60 text-slate-400 dark:text-slate-500 text-xs">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleCopy}
@@ -139,9 +180,14 @@ export function MessageBubble({
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
+              {timeStr && (
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 select-none">
+                  {timeStr}
+                </span>
+              )}
             </div>
 
-            {/* Thumbs up/down response rating (Task 6.11) */}
+            {/* Thumbs up/down response rating */}
             <div className="flex items-center gap-1">
               <span className="text-[10px] pr-1">Was this helpful?</span>
               <button

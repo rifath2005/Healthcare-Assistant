@@ -13,11 +13,13 @@ import { ExportSummaryModal } from "./ExportSummaryModal";
 import {
   getGuestMessages,
   setGuestMessages,
+  clearGuestMessages,
   type GuestMessage,
 } from "@/lib/supabase/syncGuestSession";
 import { createClient } from "@/lib/supabase/client";
-import { HeartPulse, Sparkles, Download, Menu, Plus, History } from "lucide-react";
+import { HeartPulse, Sparkles, Download, Menu, Plus, History, RotateCcw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface Message {
   id?: string;
@@ -38,14 +40,15 @@ const INITIAL_WELCOME_MESSAGE: Message = {
   id: "welcome-msg",
   role: "assistant",
   content:
-    "Hello! I am your Smart Healthcare Assistant. You can ask me health and wellness questions, describe any symptoms you are experiencing, or practice guided breathing and grounding exercises.\n\n*Reminder: I provide evidence-grounded health literacy, not certified clinical diagnoses.*",
+    "Hello! I am your Smart Healthcare Assistant. You can ask me health and wellness questions, describe symptoms you are experiencing, learn about medical conditions and preventive care, or practice guided breathing exercises.\n\n*Reminder: I provide evidence-grounded health literacy and guidance, not formal clinical diagnoses or prescription medication.*",
+  created_at: new Date().toISOString(),
 };
 
 const SUGGESTION_CHIPS = [
   "I have had a dull headache for 2 days",
-  "Feeling overwhelmed with stress and anxiety",
-  "Book a consultation with a doctor",
   "What are the warning signs of a heart attack?",
+  "Feeling overwhelmed with stress and anxiety",
+  "How do I schedule an appointment with a clinic doctor?",
 ];
 
 export function ChatContainer({
@@ -136,6 +139,27 @@ export function ChatContainer({
     };
   }, [conversationId]);
 
+  const handleClearChat = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const freshWelcome: Message = {
+      id: `welcome-msg-${Date.now()}`,
+      role: "assistant",
+      content: INITIAL_WELCOME_MESSAGE.content,
+      created_at: new Date().toISOString(),
+    };
+    setMessages([freshWelcome]);
+    clearGuestMessages();
+    setCrisisState({ triggered: false });
+    setIsLoading(false);
+    setDetectedMood("neutral");
+    if (conversationId && onNewConversation) {
+      onNewConversation();
+    }
+    toast.success("Chat history cleared");
+  };
+
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
@@ -170,6 +194,8 @@ export function ChatContainer({
 
     // 3. Initiate Streaming Chat Response
     abortControllerRef.current = new AbortController();
+    let assistantMsgId = "";
+    let accumulatedText = "";
 
     try {
       const isEmpatheticMode = ["anxious", "depressed", "stressed", "overwhelmed"].includes(
@@ -178,7 +204,7 @@ export function ChatContainer({
 
       // Filter out client-side welcome UI placeholder so history begins with user turn
       const payloadMessages = nextMessages
-        .filter((m) => m.id !== "welcome-msg")
+        .filter((m) => m.id !== "welcome-msg" && !m.id?.startsWith("welcome-msg-"))
         .map((m) => ({ role: m.role, content: m.content }));
 
       const response = await fetch("/api/chat", {
@@ -193,8 +219,21 @@ export function ChatContainer({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to communicate with healthcare assistant");
+        let errorMsg = "Unable to reach healthcare assistant. Please try again.";
+        try {
+          const errorData = await response.json();
+          if (errorData?.error) errorMsg = errorData.error;
+        } catch {}
+        toast.error(errorMsg);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `ast_err_${Date.now()}`,
+            role: "assistant",
+            content: `I apologize, but I encountered an issue: ${errorMsg}\n\nPlease try again shortly, or consult our clinic doctors if you require immediate medical assistance.`,
+            created_at: new Date().toISOString(),
+          },
+        ]);
         setIsLoading(false);
         return;
       }
@@ -204,8 +243,8 @@ export function ChatContainer({
       }
 
       // Placeholder assistant message to stream into
-      const assistantMsgId = `ast_${Date.now()}`;
-      let accumulatedText = "";
+      assistantMsgId = `ast_${Date.now()}`;
+      accumulatedText = "";
       let incomingCitations: Citation[] = [];
 
       setMessages((prev) => [
@@ -215,6 +254,7 @@ export function ChatContainer({
           role: "assistant",
           content: "",
           citations: [],
+          created_at: new Date().toISOString(),
         },
       ]);
 
@@ -268,6 +308,17 @@ export function ChatContainer({
               );
             } else if (data.type === "DONE") {
               setIsLoading(false);
+            } else if (data.type === "ERROR") {
+              const errMsg = data.error || "An error occurred while streaming the medical response.";
+              accumulatedText = accumulatedText
+                ? `${accumulatedText}\n\n*(Notice: ${errMsg})*`
+                : `I apologize, but an error occurred while generating the response: ${errMsg}`;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMsgId ? { ...m, content: accumulatedText } : m
+                )
+              );
+              setIsLoading(false);
             }
           } catch {
             // Ignore malformed chunk
@@ -293,6 +344,31 @@ export function ChatContainer({
       } else {
         console.error("Chat streaming error:", err);
         toast.error("Stream connection error. Please retry.");
+        setMessages((prev) => {
+          const exists = prev.some((m) => m.id === assistantMsgId);
+          if (exists) {
+            return prev.map((m) =>
+              m.id === assistantMsgId
+                ? {
+                    ...m,
+                    content:
+                      accumulatedText ||
+                      "I'm sorry, the connection was interrupted before I could complete my response. Please send your message again.",
+                  }
+                : m
+            );
+          }
+          return [
+            ...prev,
+            {
+              id: `ast_err_${Date.now()}`,
+              role: "assistant",
+              content:
+                "I apologize, but a connection error occurred while contacting the assistant. Please try sending your message again.",
+              created_at: new Date().toISOString(),
+            },
+          ];
+        });
       }
     } finally {
       setIsLoading(false);
@@ -355,6 +431,17 @@ export function ChatContainer({
 
           <button
             type="button"
+            onClick={handleClearChat}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-rose-50 hover:border-rose-300 dark:hover:bg-rose-950/30 dark:hover:border-rose-900 text-slate-700 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 shadow-2xs transition-colors"
+            title="Clear current chat messages"
+            aria-label="Clear chat"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Clear Chat</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowExport(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
             title="Export consultation summary"
@@ -363,6 +450,18 @@ export function ChatContainer({
             <span className="hidden sm:inline">Export</span>
           </button>
         </div>
+      </div>
+
+      {/* Prominent Medical Disclaimer Banner */}
+      <div
+        className="bg-amber-50/90 dark:bg-amber-950/50 border-b border-amber-200/80 dark:border-amber-900/60 px-4 py-2 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2 shadow-2xs"
+        role="note"
+        aria-label="Medical disclaimer"
+      >
+        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+        <p className="leading-tight">
+          <span className="font-semibold">Medical Disclaimer:</span> This AI assistant provides general health education and symptom literacy. It is <strong>not</strong> a substitute for professional clinical judgment, diagnosis, or treatment. In a medical or mental health emergency, call <strong>911</strong> or <strong>988</strong> immediately.
+        </p>
       </div>
 
       {/* Main Messages Scroll Area */}
@@ -392,6 +491,8 @@ export function ChatContainer({
             role={m.role}
             content={m.content}
             citations={m.citations}
+            createdAt={m.created_at}
+            isTyping={isLoading && m.role === "assistant" && !m.content}
             onOpenBookingModal={(mode) => {
               if (mode) setBookingMode(mode);
               setShowBooking(true);
@@ -411,13 +512,22 @@ export function ChatContainer({
 
       {/* Suggestion Chips */}
       {messages.length <= 2 && (
-        <div className="px-4 py-2 flex flex-wrap gap-1.5">
+        <div className="px-4 py-2 flex flex-wrap gap-1.5 items-center">
+          <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mr-1 select-none">
+            Suggested:
+          </span>
           {SUGGESTION_CHIPS.map((chip, i) => (
             <button
               key={i}
               type="button"
+              disabled={isLoading}
               onClick={() => handleSendMessage(chip)}
-              className="text-xs px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors shadow-2xs"
+              className={cn(
+                "text-xs px-3 py-1.5 rounded-full border transition-colors shadow-2xs",
+                isLoading
+                  ? "opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400"
+                  : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
+              )}
             >
               {chip}
             </button>
