@@ -45,11 +45,11 @@ export async function requireRole(allowedRole: Role = "admin"): Promise<{
   const { userId, role, isAuthenticated } = await getCurrentUserRole();
 
   if (!isAuthenticated || !userId) {
-    redirect("/login?redirect=" + encodeURIComponent("/admin"));
+    redirect("/admin/login?redirect=" + encodeURIComponent("/admin/doctors"));
   }
 
   if (role !== allowedRole) {
-    redirect("/?error=" + encodeURIComponent("Access denied: Administrative privileges required"));
+    redirect("/admin/login?error=" + encodeURIComponent("Access denied: Administrative privileges required"));
   }
 
   return { userId, role };

@@ -199,6 +199,21 @@ export default function LoginPage() {
             Sign up for free
           </Link>
         </p>
+
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
+          <Link
+            href="/doctor/login"
+            className="hover:text-emerald-600 dark:hover:text-emerald-400 font-medium transition-colors"
+          >
+            🩺 Clinician Portal &rarr;
+          </Link>
+          <Link
+            href="/admin/login"
+            className="hover:text-emerald-600 dark:hover:text-emerald-400 font-medium transition-colors"
+          >
+            🛡️ Admin Console &rarr;
+          </Link>
+        </div>
       </div>
     </div>
   );

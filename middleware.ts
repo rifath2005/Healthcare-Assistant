@@ -48,6 +48,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/terms" ||
     pathname === "/privacy" ||
     pathname.startsWith("/doctor") ||
+    pathname === "/admin/login" ||
     pathname.startsWith("/auth/callback");
 
   const isAdminRoute = pathname.startsWith("/admin");
@@ -67,9 +68,13 @@ export async function middleware(request: NextRequest) {
     return createRedirectResponse(url);
   }
 
-  // 2. If unauthenticated and NOT on a public route (including /) -> redirect to /login
+  // 2. If unauthenticated and NOT on a public route -> redirect to appropriate portal
   if (!user && !isPublicRoute) {
-    url.pathname = "/login";
+    if (pathname.startsWith("/admin")) {
+      url.pathname = "/admin/login";
+    } else {
+      url.pathname = "/login";
+    }
     if (pathname !== "/") {
       url.searchParams.set("redirect", pathname);
     }
@@ -84,10 +89,17 @@ export async function middleware(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    if (profile?.role !== "admin") {
-      url.pathname = "/";
-      url.searchParams.set("error", "Access denied. Administrative privileges required.");
-      return createRedirectResponse(url);
+    if (profile?.role === "admin") {
+      if (pathname === "/admin/login") {
+        url.pathname = "/admin/doctors";
+        return createRedirectResponse(url);
+      }
+    } else {
+      if (pathname !== "/admin/login") {
+        url.pathname = "/admin/login";
+        url.searchParams.set("error", "Access denied. Administrative privileges required.");
+        return createRedirectResponse(url);
+      }
     }
   }
 
