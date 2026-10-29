@@ -32,8 +32,13 @@ export function MessageBubble({
 
   const isUser = role === "user";
 
+  const cleanText = (text: string) =>
+    text.replace(/\s*\[\d+\](?:\s*,\s*\[\d+\])*/g, "");
+
+  const displayContent = cleanText(content);
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(content);
+    navigator.clipboard.writeText(displayContent);
     setCopied(true);
     toast.success("Copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
@@ -89,7 +94,7 @@ export function MessageBubble({
             : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-xs"
         )}
       >
-        <div className="whitespace-pre-wrap break-words">{content}</div>
+        <div className="whitespace-pre-wrap break-words">{displayContent}</div>
 
         {/* Interactive Appointment Trigger Card inside chat if suggested */}
         {suggestsBooking && onOpenBookingModal && (

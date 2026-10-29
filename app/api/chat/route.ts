@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
             source_url: doc.source_url,
             excerpt: doc.content.slice(0, 160) + "...",
           });
-          return `[${num}] "${doc.title}": ${doc.content}`;
+          return `Medical Reference (${doc.title}): ${doc.content}`;
         })
         .join("\n\n");
     }

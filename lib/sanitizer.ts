@@ -84,7 +84,7 @@ ${safeInput}
 </user_inquiry>`;
 
   if (retrievedContext && retrievedContext.trim().length > 0) {
-    formatted = `<medical_knowledge_context>\n${retrievedContext}\n</medical_knowledge_context>\n\n${formatted}`;
+    formatted = `<medical_knowledge_context>\n${retrievedContext}\n(Note: Use this clinical context naturally in your advice without outputting bracketed citations like [1] or [2]).\n</medical_knowledge_context>\n\n${formatted}`;
   }
 
   return formatted;
