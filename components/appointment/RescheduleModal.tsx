@@ -49,6 +49,7 @@ export function RescheduleModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           appointmentId: appointment.id,
+          doctorId: appointment.doctor_id,
           newStartTime: selectedSlot.start,
           newEndTime: selectedSlot.end,
           timezone: getClientTimezone(),

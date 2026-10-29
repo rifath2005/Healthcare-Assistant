@@ -37,16 +37,16 @@ export default function UserAppointmentsPage() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [reschedulingAppointment, setReschedulingAppointment] = useState<Appointment | null>(null);
 
-  const loadAppointments = async () => {
+  const loadAppointments = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setLoading(false);
+        if (!silent) setLoading(false);
         return;
       }
 
@@ -69,12 +69,16 @@ export default function UserAppointmentsPage() {
     } catch (e) {
       console.warn("Failed to load appointments:", e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadAppointments();
+    const pollInterval = setInterval(() => {
+      loadAppointments(true);
+    }, 15000);
+    return () => clearInterval(pollInterval);
   }, []);
 
   const handleCancel = async (id: string) => {

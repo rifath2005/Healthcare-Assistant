@@ -69,10 +69,10 @@ export default function DoctorAppointmentsPage() {
     }
   }, [router]);
 
-  const loadDoctorAppointments = async (docId?: string) => {
+  const loadDoctorAppointments = async (docId?: string, silent = false) => {
     const id = docId || currentDoctor?.id;
     if (!id) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const res = await fetch(`/api/doctor/appointments?doctorId=${id}`);
       const data = await res.json();
@@ -84,16 +84,24 @@ export default function DoctorAppointmentsPage() {
       }
     } catch (err) {
       console.error("Failed to fetch doctor appointments:", err);
-      toast.error("Error loading doctor schedule");
+      if (!silent) {
+        toast.error("Error loading doctor schedule");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (currentDoctor?.id) {
-      loadDoctorAppointments(currentDoctor.id);
-    }
+    if (!currentDoctor?.id) return;
+    loadDoctorAppointments(currentDoctor.id);
+
+    // Auto-sync polling every 10 seconds to reflect patient bookings & cancellations
+    const pollInterval = setInterval(() => {
+      loadDoctorAppointments(currentDoctor.id, true);
+    }, 10000);
+
+    return () => clearInterval(pollInterval);
   }, [currentDoctor?.id]);
 
   const handleSignOut = () => {

@@ -275,44 +275,48 @@ export async function sendAppointmentConfirmation(options: SendAppointmentEmailO
 
 /**
  * Sends 24-hour reminder email.
+ * Uses dispatchEmailWithSandboxFallback to ensure delivery in sandbox testing mode.
  */
 export async function sendAppointmentReminder(options: SendAppointmentEmailOptions) {
   recordEmailDispatch();
   const resend = getResendClient();
+  const fromEmail = env.EMAIL_FROM || "onboarding@resend.dev";
+  const patientDestination = options.patientEmail || options.to;
+  const isVirtual = options.consultationType === "virtual" || Boolean(options.meetLink);
 
   if (!resend) {
-    console.log(`[Email Mock] 24h Reminder email would be sent to: ${options.to}`);
+    console.log(`[Email Mock] 24h Reminder email would be sent to: ${patientDestination}`);
     return { success: true, id: `mock_reminder_${Date.now()}` };
   }
 
-  try {
-    const htmlBody = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #0284c7;">⏰ Upcoming Appointment Reminder</h2>
-        <p>Dear ${options.patientName || "Patient"},</p>
-        <p>This is a reminder for your consultation tomorrow with <strong>${options.doctorName}</strong>.</p>
-        <p><strong>Time:</strong> ${options.startTime}</p>
-        ${options.meetLink ? `<p><a href="${options.meetLink}">Google Meet Link: ${options.meetLink}</a></p>` : ""}
+  const htmlBody = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+      <h2 style="color: #0284c7; margin: 0 0 16px 0;">⏰ Upcoming Appointment Reminder</h2>
+      <p style="color: #334155; font-size: 14px;">Dear ${options.patientName || "Patient"},</p>
+      <p style="color: #475569; font-size: 14px;">This is a reminder for your upcoming consultation with <strong>${options.doctorName}</strong> (${options.doctorSpecialty}).</p>
+      <div style="background-color: #f8fafc; border-radius: 12px; padding: 16px; font-size: 13px; color: #334155; margin: 16px 0;">
+        <p style="margin: 0 0 6px 0;"><strong>Scheduled Time:</strong> ${options.startTime}</p>
+        <p style="margin: 0 0 6px 0;"><strong>Consultation Mode:</strong> ${isVirtual ? "🌐 Virtual Telehealth" : "🏥 Direct In-Person Visit"}</p>
+        ${options.clinicRoom ? `<p style="margin: 0;"><strong>Room:</strong> ${options.clinicRoom}</p>` : ""}
       </div>
-    `;
+      ${options.meetLink ? `
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="${options.meetLink}" target="_blank" rel="noopener noreferrer" style="background-color: #0284c7; color: #ffffff; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 13px;">
+            Join Google Meet Consultation
+          </a>
+        </div>
+      ` : ""}
+    </div>
+  `;
 
-    const { data, error } = await resend.emails.send({
-      from: env.EMAIL_FROM || "onboarding@resend.dev",
-      to: [options.to],
-      subject: `Reminder: Consultation tomorrow with ${options.doctorName}`,
-      html: htmlBody,
-    });
-
-    if (error) {
-      console.error("Resend reminder error:", error);
-      return { success: false, error };
-    }
-
-    return { success: true, id: data?.id };
-  } catch (err) {
-    console.error("Resend reminder exception:", err);
-    return { success: false, error: err };
-  }
+  return dispatchEmailWithSandboxFallback(resend, {
+    from: fromEmail,
+    to: patientDestination,
+    subject: `[Reminder] Consultation tomorrow with ${options.doctorName} - ${options.startTime}`,
+    html: htmlBody,
+    role: "Patient",
+    name: options.patientName || "Patient",
+  });
 }
 
 /**
