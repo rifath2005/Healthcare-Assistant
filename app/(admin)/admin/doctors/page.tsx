@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, Edit2, Trash2, CheckCircle, XCircle, Stethoscope, Loader2, Save, X } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { Plus, Edit2, Trash2, CheckCircle, XCircle, Stethoscope, Loader2, Save, X, KeyRound, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 
 interface Doctor {
@@ -16,11 +15,19 @@ interface Doctor {
   working_hours: Record<string, { start: string; end: string }>;
 }
 
+interface DoctorCredentials {
+  email: string;
+  clinicalCode: string;
+  password: string;
+}
+
 export default function AdminDoctorsPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<DoctorCredentials | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Form fields
   const [name, setName] = useState("");
@@ -46,14 +53,10 @@ export default function AdminDoctorsPage() {
   const loadDoctors = async () => {
     try {
       setLoading(true);
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("doctors")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        setDoctors(data);
+      const res = await fetch("/api/admin/doctors");
+      const data = await res.json();
+      if (data.doctors) {
+        setDoctors(data.doctors);
       }
     } catch (e) {
       console.warn("Failed to load doctors:", e);
@@ -100,12 +103,12 @@ export default function AdminDoctorsPage() {
     }
 
     try {
-      const supabase = createClient();
-
       if (editingDoctor) {
-        const { error } = await supabase
-          .from("doctors")
-          .update({
+        const res = await fetch("/api/admin/doctors", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingDoctor.id,
             name,
             specialty,
             calendar_id: calendarId,
@@ -113,24 +116,34 @@ export default function AdminDoctorsPage() {
             avatar_url: avatarUrl,
             is_active: isActive,
             working_hours: parsedHours,
-          })
-          .eq("id", editingDoctor.id);
-
-        if (error) throw error;
-        toast.success("Physician updated successfully");
-      } else {
-        const { error } = await supabase.from("doctors").insert({
-          name,
-          specialty,
-          calendar_id: calendarId,
-          bio,
-          avatar_url: avatarUrl,
-          is_active: isActive,
-          working_hours: parsedHours,
+          }),
         });
 
-        if (error) throw error;
-        toast.success("Physician added successfully");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to update doctor");
+        toast.success("Physician updated successfully");
+      } else {
+        const res = await fetch("/api/admin/doctors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            specialty,
+            calendar_id: calendarId,
+            bio,
+            avatar_url: avatarUrl,
+            is_active: isActive,
+            working_hours: parsedHours,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to add doctor");
+
+        toast.success("Physician registered successfully!");
+        if (data.credentials) {
+          setCreatedCredentials(data.credentials);
+        }
       }
 
       setIsModalOpen(false);
@@ -145,14 +158,21 @@ export default function AdminDoctorsPage() {
     if (!confirm("Are you sure you want to remove this physician?")) return;
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.from("doctors").delete().eq("id", id);
-      if (error) throw error;
-      setDoctors(doctors.filter((d) => d.id !== id));
+      const res = await fetch(`/api/admin/doctors?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete");
+      setDoctors((prev) => prev.filter((d) => d.id !== id));
       toast.success("Physician deleted");
     } catch (err: any) {
       toast.error(err.message || "Failed to delete physician");
     }
+  };
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    toast.success(`Copied ${field} to clipboard`);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
   return (
@@ -160,7 +180,7 @@ export default function AdminDoctorsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Physicians & Specialists Directory
+            Physicians &amp; Specialists Directory
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Configure physician profiles, calendar delegation IDs, and working hours
@@ -181,66 +201,162 @@ export default function AdminDoctorsPage() {
           <Loader2 className="w-8 h-8 animate-spin" />
         </div>
       ) : doctors.length === 0 ? (
-        <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 text-xs text-slate-500">
-          No physicians registered in the database.
+        <div className="text-center py-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8">
+          <Stethoscope className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-base font-bold text-slate-700 dark:text-slate-200">
+            No physicians registered
+          </h3>
+          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+            Click &quot;Add Physician&quot; above to register specialists available for booking.
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {doctors.map((doc) => (
-            <div
-              key={doc.id}
-              className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    {doc.name}
-                  </h3>
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                    {doc.specialty}
-                  </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {doctors.map((doc) => {
+            const loginEmail = `${doc.name.toLowerCase().replace(/[^a-z]/g, "")}@healthcare.local`;
+            return (
+              <div
+                key={doc.id}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm hover:shadow-md transition-shadow space-y-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={
+                        doc.avatar_url ||
+                        "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=300"
+                      }
+                      alt={doc.name}
+                      className="w-11 h-11 rounded-2xl object-cover border border-slate-200 dark:border-slate-700"
+                    />
+                    <div>
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                        {doc.name}
+                      </h3>
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                        {doc.specialty}
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      doc.is_active
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                    }`}
+                  >
+                    {doc.is_active ? "Active" : "Inactive"}
+                  </span>
                 </div>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    doc.is_active
-                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                  }`}
+
+                {doc.bio && (
+                  <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">
+                    {doc.bio}
+                  </p>
+                )}
+
+                {/* Login Credentials Box */}
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-[11px] space-y-1">
+                  <div className="font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <KeyRound className="w-3 h-3 text-emerald-600" /> Provider Portal Login:
+                    </span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-mono font-bold">
+                      PIN: Doctor@2026
+                    </span>
+                  </div>
+                  <div className="text-slate-500 dark:text-slate-400 font-mono text-[10px] truncate">
+                    Login ID: {loginEmail}
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-500 font-mono">
+                  Calendar ID: {doc.calendar_id}
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(doc)}
+                    className="flex-1 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center gap-1.5"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(doc.id)}
+                    className="p-1.5 rounded-lg border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
+                    title="Delete physician"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* New Credentials Modal (Shown after adding a physician) */}
+      {createdCredentials && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-4">
+            <button
+              onClick={() => setCreatedCredentials(null)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle className="w-5 h-5" />
+              <h2 className="text-base font-bold">Physician Registered Successfully!</h2>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Share these credentials with the physician to allow them to access the Clinician Portal at <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">/doctor/login</code>:
+            </p>
+
+            <div className="space-y-2 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-mono">
+              <div className="flex items-center justify-between">
+                <span>Login Email / ID:</span>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(createdCredentials.email, "Email")}
+                  className="flex items-center gap-1 font-bold text-slate-900 dark:text-white hover:text-emerald-600"
                 >
-                  {doc.is_active ? "Active" : "Inactive"}
+                  {createdCredentials.email}
+                  {copiedField === "Email" ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span>Clinical Code:</span>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(createdCredentials.clinicalCode, "Code")}
+                  className="flex items-center gap-1 font-bold text-slate-900 dark:text-white hover:text-emerald-600"
+                >
+                  {createdCredentials.clinicalCode}
+                  {copiedField === "Code" ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-700 pt-2">
+                <span>Security PIN:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  {createdCredentials.password}
                 </span>
               </div>
-
-              {doc.bio && (
-                <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">
-                  {doc.bio}
-                </p>
-              )}
-
-              <div className="text-[11px] text-slate-500 font-mono">
-                Calendar ID: {doc.calendar_id}
-              </div>
-
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => openEditModal(doc)}
-                  className="flex-1 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center gap-1.5"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(doc.id)}
-                  className="p-1.5 rounded-lg border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
-                  title="Delete physician"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
             </div>
-          ))}
+
+            <button
+              onClick={() => setCreatedCredentials(null)}
+              className="w-full py-2.5 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+            >
+              Done &amp; Return to Directory
+            </button>
+          </div>
         </div>
       )}
 
@@ -279,7 +395,18 @@ export default function AdminDoctorsPage() {
                   required
                   value={specialty}
                   onChange={(e) => setSpecialty(e.target.value)}
-                  placeholder="Internal Medicine / Cardiology"
+                  placeholder="Internal Medicine / Cardiology / Dermatology"
+                  className="w-full px-3 py-2 border rounded-xl dark:bg-slate-800 dark:border-slate-700"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold pb-1">Photo Avatar URL (Optional)</label>
+                <input
+                  type="url"
+                  value={avatarUrl}
+                  onChange={(e) => setAvatarUrl(e.target.value)}
+                  placeholder="https://images.unsplash.com/photo-..."
                   className="w-full px-3 py-2 border rounded-xl dark:bg-slate-800 dark:border-slate-700"
                 />
               </div>
@@ -291,9 +418,12 @@ export default function AdminDoctorsPage() {
                   required
                   value={calendarId}
                   onChange={(e) => setCalendarId(e.target.value)}
-                  placeholder="primary or doctor@clinic.com"
+                  placeholder="primary"
                   className="w-full px-3 py-2 border rounded-xl dark:bg-slate-800 dark:border-slate-700"
                 />
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Keep as &quot;primary&quot; to use the clinic&apos;s connected Google Calendar.
+                </p>
               </div>
 
               <div>
@@ -326,7 +456,7 @@ export default function AdminDoctorsPage() {
                   className="w-4 h-4 text-emerald-600 rounded"
                 />
                 <label htmlFor="activeCheck" className="font-semibold select-none">
-                  Physician is Active & Discoverable for Bookings
+                  Physician is Active &amp; Discoverable for Bookings
                 </label>
               </div>
 
