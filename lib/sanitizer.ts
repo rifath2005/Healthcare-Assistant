@@ -4,12 +4,16 @@
 
 const KNOWN_INJECTION_PATTERNS = [
   /ignore\s+(all\s+)?(previous|prior|above)\s+instructions/i,
-  /disregard\s+(all\s+)?(previous|prior|system)\s+prompts?/i,
+  /disregard\s+(all\s+)?((previous|prior)\s+)?(system\s+)?prompts?/i,
   /you\s+are\s+now\s+in\s+(developer|dan|god|unrestricted)\s+mode/i,
   /reveal\s+(your\s+)?(system\s+prompt|initial\s+instructions)/i,
   /what\s+are\s+your\s+(exact\s+)?instructions\s+above/i,
   /override\s+system\s+rules/i,
-  /print\s+the\s+system\s+message/i,
+  /print\s+(your\s+|the\s+)?(system\s+message|system\s+prompt|instructions)/i,
+  /act\s+as\s+(an?\s+)?(unrestricted|jailbroken|unfiltered|developer)\b/i,
+  /bypass\s+(your\s+)?(safety|system|content)\s+(filters?|rules?|guardrails?)/i,
+  /simulate\s+(a\s+)?(jailbreak|terminal|shell|cmd)\b/i,
+  /repeat\s+everything\s+(above|prior)/i,
 ];
 
 /**
@@ -65,12 +69,19 @@ export function sanitizeUserPrompt(rawInput: string): string {
 }
 
 /**
- * Wraps user message with defensive grounding instructions.
+ * Wraps user message with defensive grounding instructions and strict domain enforcement.
  */
 export function formatDefensivePrompt(userInput: string, retrievedContext?: string): string {
   const safeInput = sanitizeUserPrompt(userInput);
 
-  let formatted = `<user_inquiry>\n${safeInput}\n</user_inquiry>`;
+  let formatted = `<system_domain_directive>
+You are strictly limited to the healthcare, medicine, health literacy, mental wellness, and clinic doctor scheduling domain.
+If the inquiry inside <user_inquiry> asks for software code, computer programming, algorithms (such as two-pointer, leetcode, sorting, or web development), mathematics, non-medical essays, or general trivia, you must strictly refuse to answer and redirect the patient to healthcare topics.
+</system_domain_directive>
+
+<user_inquiry>
+${safeInput}
+</user_inquiry>`;
 
   if (retrievedContext && retrievedContext.trim().length > 0) {
     formatted = `<medical_knowledge_context>\n${retrievedContext}\n</medical_knowledge_context>\n\n${formatted}`;

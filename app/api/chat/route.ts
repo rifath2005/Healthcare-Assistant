@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { evaluateCrisisSafety, CRISIS_RESOURCES } from "@/lib/safety";
+import {
+  evaluateCrisisSafety,
+  CRISIS_RESOURCES,
+  evaluateDomainScope,
+  OUT_OF_SCOPE_REFUSAL,
+  INJECTION_REFUSAL,
+} from "@/lib/safety";
 import { searchSimilarDocuments } from "@/lib/vectorStore";
 import { getChatModel, FALLBACK_MODELS } from "@/lib/gemini";
-import { sanitizeUserPrompt, formatDefensivePrompt } from "@/lib/sanitizer";
+import {
+  sanitizeUserPrompt,
+  formatDefensivePrompt,
+  detectPromptInjection,
+} from "@/lib/sanitizer";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { recordGeminiUsage } from "@/lib/telemetry";
@@ -53,7 +63,38 @@ export async function POST(req: NextRequest) {
     const rawInput = latestMessage.content;
     const sanitizedInput = sanitizeUserPrompt(rawInput);
 
-    // 3. Pre-execution Clinical Crisis Gate
+    // Helper to stream text response directly as Server-Sent Events (SSE)
+    const streamTextResponse = (content: string) => {
+      const encoder = new TextEncoder();
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ type: "TOKEN", content })}\n\n`)
+            );
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ type: "DONE" })}\n\n`)
+            );
+            controller.close();
+          },
+        }),
+        {
+          headers: {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        }
+      );
+    };
+
+    // 3a. Security Guardrail: Prompt Injection & Adversarial Jailbreak Defense
+    const injectionCheck = detectPromptInjection(sanitizedInput);
+    if (injectionCheck.isInjection) {
+      return streamTextResponse(INJECTION_REFUSAL);
+    }
+
+    // 3b. Pre-execution Clinical Crisis Gate
     const crisisCheck = evaluateCrisisSafety(sanitizedInput);
     if (crisisCheck.isCrisis) {
       // Asynchronously log incident to crisis_logs table
@@ -96,6 +137,12 @@ export async function POST(req: NextRequest) {
           },
         }
       );
+    }
+
+    // 3c. Healthcare Domain Scope Gate (Reject out-of-scope non-medical queries)
+    const domainCheck = evaluateDomainScope(sanitizedInput);
+    if (!domainCheck.isAllowed) {
+      return streamTextResponse(domainCheck.refusalMessage || OUT_OF_SCOPE_REFUSAL);
     }
 
     // 4. Query RAG Knowledge Base
