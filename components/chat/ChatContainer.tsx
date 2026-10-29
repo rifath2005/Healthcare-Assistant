@@ -15,7 +15,7 @@ import {
   type GuestMessage,
 } from "@/lib/supabase/syncGuestSession";
 import { createClient } from "@/lib/supabase/client";
-import { HeartPulse, Sparkles, Download, Menu, Plus } from "lucide-react";
+import { HeartPulse, Sparkles, Download, Menu, Plus, History } from "lucide-react";
 import { toast } from "sonner";
 
 interface Message {
@@ -327,6 +327,18 @@ export function ChatContainer({
         </div>
 
         <div className="flex items-center gap-2">
+          {onToggleSidebar && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
+              title="View consultation history"
+            >
+              <History className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>History</span>
+            </button>
+          )}
+
           {onNewConversation && (
             <button
               type="button"

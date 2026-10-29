@@ -28,7 +28,20 @@ export default function HomePage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Auto-close sidebar on mobile devices on initial render
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  }, []);
+
+  const handleCloseMobile = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  };
 
   useEffect(() => {
     const supabase = createClient();
@@ -192,7 +205,7 @@ export default function HomePage() {
             onSelectConversation={setActiveConversationId}
             onNewConversation={handleNewConversation}
             isOpen={isSidebarOpen}
-            onCloseMobile={() => setIsSidebarOpen(false)}
+            onCloseMobile={handleCloseMobile}
           />
         )}
 
