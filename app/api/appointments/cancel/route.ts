@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { deleteCalendarAppointment } from "@/lib/googleCalendar";
 import { sendAppointmentCancellation } from "@/lib/resend";
 import { formatAppointmentTime } from "@/lib/timezone";
+import { CLINIC_DOCTORS } from "@/lib/doctors";
 
 export const runtime = "nodejs";
 
@@ -64,13 +65,21 @@ export async function POST(req: NextRequest) {
 
     // 4. Send cancellation email
     const patientEmail = user.email || "";
+    const doctorProfile = CLINIC_DOCTORS.find((d) => d.id === appointment.doctor_id);
     const formattedDate = formatAppointmentTime(appointment.start_time);
+    const isVirtual = Boolean(appointment.meet_link);
+
     await sendAppointmentCancellation({
       to: patientEmail,
       patientName: profile?.full_name || "Patient",
+      patientEmail,
       doctorName: appointment.doctor_name,
+      doctorEmail: doctorProfile?.email,
       doctorSpecialty: appointment.doctor_specialty,
       startTime: formattedDate,
+      consultationType: isVirtual ? "virtual" : "direct",
+      cancelledBy: "patient",
+      cancellationReason: "Cancelled upon patient request via patient portal",
     });
 
     return NextResponse.json({

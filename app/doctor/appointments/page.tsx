@@ -134,8 +134,15 @@ export default function DoctorAppointmentsPage() {
 
   // Mark Completed or Cancelled
   const handleUpdateStatus = async (apptId: string, status: "completed" | "cancelled") => {
-    if (status === "cancelled" && !confirm("Are you sure you want to cancel this appointment?")) {
-      return;
+    let reason = "";
+    if (status === "cancelled") {
+      if (!confirm("Are you sure you want to cancel this appointment? An email notification will automatically be sent to the patient.")) {
+        return;
+      }
+      const enteredReason = prompt("Optional: Enter a reason for cancellation to include in the patient email (e.g., Clinical schedule conflict):");
+      if (enteredReason && enteredReason.trim()) {
+        reason = enteredReason.trim();
+      }
     }
 
     setActionLoadingId(apptId);
@@ -143,11 +150,15 @@ export default function DoctorAppointmentsPage() {
       const res = await fetch("/api/doctor/appointments/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appointmentId: apptId, status }),
+        body: JSON.stringify({ appointmentId: apptId, status, reason }),
       });
 
       if (res.ok) {
-        toast.success(`Appointment marked as ${status}`);
+        if (status === "cancelled") {
+          toast.success("Appointment cancelled & patient notified by email");
+        } else {
+          toast.success("Appointment marked as completed");
+        }
         setAppointments((prev) =>
           prev.map((a) => (a.id === apptId ? { ...a, status } : a))
         );

@@ -24,6 +24,8 @@ export interface SendAppointmentEmailOptions {
   clinicRoom?: string;
   meetLink?: string;
   notes?: string;
+  cancelledBy?: "doctor" | "patient" | "admin";
+  cancellationReason?: string;
 }
 
 /**
@@ -315,41 +317,89 @@ export async function sendAppointmentReminder(options: SendAppointmentEmailOptio
 
 /**
  * Sends appointment cancellation email.
+ * Uses dispatchEmailWithSandboxFallback to ensure delivery even in sandbox testing mode.
  */
 export async function sendAppointmentCancellation(options: SendAppointmentEmailOptions) {
   recordEmailDispatch();
   const resend = getResendClient();
+  const fromEmail = env.EMAIL_FROM || "onboarding@resend.dev";
+  const patientDestination = options.patientEmail || options.to;
+  const isVirtual = options.consultationType === "virtual" || Boolean(options.meetLink);
+  const cancelledByTitle = options.cancelledBy === "patient" ? "Patient Request" : "Attending Physician / Clinic";
+  const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
 
   if (!resend) {
-    console.log(`[Email Mock] Cancellation email would be sent to: ${options.to}`);
+    console.log(`[Email Mock] Cancellation email would be sent to: ${patientDestination}`);
     return { success: true, id: `mock_cancel_${Date.now()}` };
   }
 
-  try {
-    const htmlBody = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #dc2626;">❌ Appointment Cancelled</h2>
-        <p>Dear ${options.patientName || "Patient"},</p>
-        <p>Your appointment with <strong>${options.doctorName}</strong> for ${options.startTime} has been cancelled.</p>
-        <p>You can rebook anytime via your dashboard.</p>
+  const patientHtml = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #fee2e2; border-radius: 16px; background-color: #ffffff;">
+      <div style="padding-bottom: 16px; border-bottom: 1px solid #fee2e2; margin-bottom: 20px;">
+        <h1 style="color: #dc2626; font-size: 20px; font-weight: 800; margin: 0;">❌ Appointment Cancelled</h1>
+        <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Healthcare Consultation Notice</p>
+      </div>
+
+      <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin-bottom: 20px;">
+        <p style="color: #991b1b; font-size: 15px; font-weight: bold; margin: 0 0 4px 0;">
+          Dear ${options.patientName || "Patient"},
+        </p>
+        <p style="color: #7f1d1d; font-size: 13px; margin: 0; line-height: 1.5;">
+          Your scheduled appointment with <strong>${options.doctorName}</strong> (${options.doctorSpecialty}) has been cancelled by <strong>${cancelledByTitle}</strong>.
+        </p>
+      </div>
+
+      <div style="background-color: #f8fafc; border-radius: 12px; padding: 16px; font-size: 13px; color: #334155; line-height: 1.6; margin-bottom: 20px;">
+        <p style="margin: 0 0 6px 0;"><strong>Physician:</strong> ${options.doctorName} &mdash; ${options.doctorSpecialty}</p>
+        <p style="margin: 0 0 6px 0;"><strong>Scheduled Time:</strong> ${options.startTime}</p>
+        <p style="margin: 0 0 6px 0;"><strong>Consultation Mode:</strong> ${isVirtual ? "🌐 Virtual Telehealth Consultation" : "🏥 In-Person Clinic Visit"}</p>
+        <p style="margin: 0 0 6px 0;"><strong>Cancellation Reason:</strong> ${options.cancellationReason || "Attending physician schedule conflict / medical emergency"}</p>
+        <p style="margin: 0; color: #64748b; font-size: 12px;">Any reserved calendar slots and video conference links have been cancelled and released.</p>
+      </div>
+
+      <div style="text-align: center; margin: 24px 0; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 20px;">
+        <p style="color: #1e40af; font-size: 13px; font-weight: bold; margin: 0 0 8px 0;">Need to reschedule or select another specialist?</p>
+        <p style="color: #475569; font-size: 12px; margin: 0 0 16px 0;">Browse our available healthcare providers to book your next consultation at a convenient time.</p>
+        <a href="${dashboardUrl}/doctors" target="_blank" rel="noopener noreferrer" style="background-color: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 14px; display: inline-block;">
+          📅 Find &amp; Book an Appointment
+        </a>
+      </div>
+
+      <div style="border-top: 1px solid #f1f5f9; padding-top: 16px; font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.5;">
+        <p style="margin: 0 0 4px 0;">We apologize for any inconvenience caused to your schedule.</p>
+        <p style="margin: 0;">If you are experiencing an acute medical emergency, please dial emergency services (911) or visit the nearest emergency room immediately.</p>
+      </div>
+    </div>
+  `;
+
+  // 1. Dispatch patient cancellation notice with fallback
+  const patientPromise = dispatchEmailWithSandboxFallback(resend, {
+    from: fromEmail,
+    to: patientDestination,
+    subject: `[Cancelled] Consultation with ${options.doctorName} - ${options.startTime}`,
+    html: patientHtml,
+    role: "Patient",
+    name: options.patientName || "Patient",
+  });
+
+  // 2. If cancelled by patient and doctor email is known, send doctor notification as well
+  if (options.doctorEmail && options.cancelledBy === "patient") {
+    const doctorHtml = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #fee2e2; border-radius: 16px; background-color: #ffffff;">
+        <h1 style="color: #dc2626; font-size: 18px; font-weight: 800; margin: 0 0 16px 0;">⚠️ Appointment Cancelled by Patient</h1>
+        <p style="color: #334155; font-size: 14px;">Dr. ${options.doctorName}, patient <strong>${options.patientName || "Patient"}</strong> has cancelled their scheduled appointment on <strong>${options.startTime}</strong>.</p>
+        <p style="color: #64748b; font-size: 12px;">Your calendar slot has been freed.</p>
       </div>
     `;
-
-    const { data, error } = await resend.emails.send({
-      from: env.EMAIL_FROM || "onboarding@resend.dev",
-      to: [options.to],
-      subject: `Cancelled: Appointment with ${options.doctorName}`,
-      html: htmlBody,
-    });
-
-    if (error) {
-      console.error("Resend cancellation error:", error);
-      return { success: false, error };
-    }
-
-    return { success: true, id: data?.id };
-  } catch (err) {
-    console.error("Resend cancellation exception:", err);
-    return { success: false, error: err };
+    dispatchEmailWithSandboxFallback(resend, {
+      from: fromEmail,
+      to: options.doctorEmail,
+      subject: `[Appointment Cancelled] Patient ${options.patientName || "Patient"} - ${options.startTime}`,
+      html: doctorHtml,
+      role: "Doctor",
+      name: options.doctorName,
+    }).catch((err) => console.error("Doctor cancellation alert error:", err));
   }
+
+  return patientPromise;
 }
