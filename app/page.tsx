@@ -9,6 +9,7 @@ import { ChatContainer } from "@/components/chat/ChatContainer";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { createClient } from "@/lib/supabase/client";
+import { clearGuestMessages } from "@/lib/supabase/syncGuestSession";
 import {
   HeartPulse,
   Calendar,
@@ -26,6 +27,7 @@ export default function HomePage() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [sessionKey, setSessionKey] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -80,6 +82,8 @@ export default function HomePage() {
 
   const handleNewConversation = () => {
     setActiveConversationId(null);
+    setSessionKey((prev) => prev + 1);
+    clearGuestMessages();
   };
 
   if (loadingUser) {
@@ -194,7 +198,10 @@ export default function HomePage() {
 
         <main className="flex-1 flex flex-col h-full overflow-hidden">
           <ChatContainer
+            key={sessionKey}
             conversationId={activeConversationId}
+            onConversationCreated={(newId) => setActiveConversationId(newId)}
+            onNewConversation={handleNewConversation}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           />
         </main>

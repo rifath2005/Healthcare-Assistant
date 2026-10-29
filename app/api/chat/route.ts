@@ -127,6 +127,29 @@ export async function POST(req: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
+    // Auto-create conversation thread if user is authenticated and conversationId was not provided
+    let activeConversationId = conversationId;
+    if (user && !activeConversationId) {
+      try {
+        const title =
+          rawInput.trim().slice(0, 40) + (rawInput.trim().length > 40 ? "..." : "");
+        const { data: newConv } = await supabase
+          .from("conversations")
+          .insert({
+            user_id: user.id,
+            title: title || "New Consultation",
+          })
+          .select("id")
+          .single();
+
+        if (newConv?.id) {
+          activeConversationId = newConv.id;
+        }
+      } catch (convErr) {
+        console.error("Auto-create conversation error:", convErr);
+      }
+    }
+
     // 7. Invoke Gemini Streaming Generation
     recordGeminiUsage(350);
 
@@ -220,7 +243,16 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         const encoder = new TextEncoder();
 
-        // If citations were found, emit them as the first event
+        // If conversationId is active, notify client
+        if (activeConversationId) {
+          const convEvent = JSON.stringify({
+            type: "CONVERSATION_ID",
+            conversationId: activeConversationId,
+          });
+          controller.enqueue(encoder.encode(`data: ${convEvent}\n\n`));
+        }
+
+        // If citations were found, emit them as the next event
         if (citations.length > 0) {
           const citationEvent = JSON.stringify({ type: "CITATIONS", citations });
           controller.enqueue(encoder.encode(`data: ${citationEvent}\n\n`));
@@ -239,22 +271,27 @@ export async function POST(req: NextRequest) {
           // Emit DONE event
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "DONE" })}\n\n`));
 
-          // 9. Persist messages to Supabase if authenticated and conversationId exists
-          if (user && conversationId) {
+          // 9. Persist messages to Supabase if authenticated and activeConversationId exists
+          if (user && activeConversationId) {
             try {
               await supabase.from("messages").insert([
                 {
-                  conversation_id: conversationId,
+                  conversation_id: activeConversationId,
                   role: "user",
                   content: rawInput,
                 },
                 {
-                  conversation_id: conversationId,
+                  conversation_id: activeConversationId,
                   role: "assistant",
                   content: accumulatedContent,
                   metadata: { citations },
                 },
               ]);
+
+              await supabase
+                .from("conversations")
+                .update({ updated_at: new Date().toISOString() })
+                .eq("id", activeConversationId);
             } catch (persistErr) {
               console.error("Failed to persist conversation turns:", persistErr);
             }

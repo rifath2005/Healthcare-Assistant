@@ -15,7 +15,7 @@ import {
   type GuestMessage,
 } from "@/lib/supabase/syncGuestSession";
 import { createClient } from "@/lib/supabase/client";
-import { HeartPulse, Sparkles, Download, Menu } from "lucide-react";
+import { HeartPulse, Sparkles, Download, Menu, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 interface Message {
@@ -28,8 +28,17 @@ interface Message {
 
 interface ChatContainerProps {
   conversationId?: string | null;
+  onConversationCreated?: (id: string) => void;
+  onNewConversation?: () => void;
   onToggleSidebar?: () => void;
 }
+
+const INITIAL_WELCOME_MESSAGE: Message = {
+  id: "welcome-msg",
+  role: "assistant",
+  content:
+    "Hello! I am your Smart Healthcare Assistant. You can ask me health and wellness questions, describe any symptoms you are experiencing, or practice guided breathing and grounding exercises.\n\n*Reminder: I provide evidence-grounded health literacy, not certified clinical diagnoses.*",
+};
 
 const SUGGESTION_CHIPS = [
   "I have had a dull headache for 2 days",
@@ -40,16 +49,12 @@ const SUGGESTION_CHIPS = [
 
 export function ChatContainer({
   conversationId,
+  onConversationCreated,
+  onNewConversation,
   onToggleSidebar,
 }: ChatContainerProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome-msg",
-      role: "assistant",
-      content:
-        "Hello! I am your Smart Healthcare Assistant. You can ask me health and wellness questions, describe any symptoms you are experiencing, or practice guided breathing and grounding exercises.\n\n*Reminder: I provide evidence-grounded health literacy, not certified clinical diagnoses.*",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([INITIAL_WELCOME_MESSAGE]);
+  const currentConvIdRef = useRef<string | null>(conversationId || null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [crisisState, setCrisisState] = useState<{
@@ -76,6 +81,12 @@ export function ChatContainer({
   useEffect(() => {
     let isMounted = true;
 
+    // Prevent re-fetching and wiping live chat if conversationId was just assigned during streaming
+    if (conversationId && conversationId === currentConvIdRef.current && messages.length > 1) {
+      return;
+    }
+    currentConvIdRef.current = conversationId || null;
+
     async function loadThread() {
       if (conversationId) {
         try {
@@ -96,16 +107,23 @@ export function ChatContainer({
                 created_at: m.created_at,
               }))
             );
+            setCrisisState({ triggered: false });
+            return;
           }
         } catch (e) {
           console.warn("Failed to load thread messages:", e);
         }
-      } else {
-        // Guest mode fallback
+      }
+
+      // Guest mode fallback or pristine initial reset
+      if (isMounted) {
         const guestMsgs = getGuestMessages();
-        if (guestMsgs.length > 0 && isMounted) {
+        if (guestMsgs.length > 0 && !conversationId) {
           setMessages(guestMsgs as Message[]);
+        } else {
+          setMessages([INITIAL_WELCOME_MESSAGE]);
         }
+        setCrisisState({ triggered: false });
       }
     }
 
@@ -219,7 +237,12 @@ export function ChatContainer({
           try {
             const data = JSON.parse(jsonStr);
 
-            if (data.type === "CRISIS_TRIGGERED") {
+            if (data.type === "CONVERSATION_ID") {
+              if (data.conversationId) {
+                currentConvIdRef.current = data.conversationId;
+                onConversationCreated?.(data.conversationId);
+              }
+            } else if (data.type === "CRISIS_TRIGGERED") {
               setCrisisState({
                 triggered: true,
                 severity: data.severity,
@@ -304,10 +327,22 @@ export function ChatContainer({
         </div>
 
         <div className="flex items-center gap-2">
+          {onNewConversation && (
+            <button
+              type="button"
+              onClick={onNewConversation}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
+              title="Start a new consultation"
+            >
+              <Plus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden sm:inline">New Consultation</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setShowExport(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
             title="Export consultation summary"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
