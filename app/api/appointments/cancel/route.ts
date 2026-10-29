@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { appointmentId } = body || {};
+    const { appointmentId, reason } = body || {};
 
     if (!appointmentId) {
       return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       startTime: formattedDate,
       consultationType: isVirtual ? "virtual" : "direct",
       cancelledBy: "patient",
-      cancellationReason: "Cancelled upon patient request via patient portal",
+      cancellationReason: reason || "Cancelled upon patient request via patient portal",
     });
 
     return NextResponse.json({

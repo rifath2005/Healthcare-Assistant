@@ -17,6 +17,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { formatAppointmentTime } from "@/lib/timezone";
 import { RescheduleModal } from "@/components/appointment/RescheduleModal";
+import { CancelAppointmentModal } from "@/components/appointment/CancelAppointmentModal";
 import { toast } from "sonner";
 
 interface Appointment {
@@ -36,6 +37,7 @@ export default function UserAppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [reschedulingAppointment, setReschedulingAppointment] = useState<Appointment | null>(null);
+  const [cancellingAppointment, setCancellingAppointment] = useState<Appointment | null>(null);
 
   const loadAppointments = async (silent = false) => {
     try {
@@ -81,21 +83,17 @@ export default function UserAppointmentsPage() {
     return () => clearInterval(pollInterval);
   }, []);
 
-  const handleCancel = async (id: string) => {
-    if (!confirm("Are you sure you want to cancel this consultation? Your calendar slot will be released.")) {
-      return;
-    }
-
+  const handleConfirmCancel = async (id: string, reason: string) => {
     setCancellingId(id);
     try {
       const res = await fetch("/api/appointments/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appointmentId: id }),
+        body: JSON.stringify({ appointmentId: id, reason }),
       });
 
       if (res.ok) {
-        toast.success("Appointment cancelled");
+        toast.success("Appointment cancelled & calendar slot released");
         setAppointments((prev) =>
           prev.map((a) => (a.id === id ? { ...a, status: "cancelled" } : a))
         );
@@ -254,7 +252,7 @@ export default function UserAppointmentsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleCancel(appt.id)}
+                        onClick={() => setCancellingAppointment(appt)}
                         disabled={cancellingId === appt.id}
                         className="py-2 px-3 rounded-xl border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-semibold flex items-center gap-1.5 transition-colors"
                       >
@@ -282,6 +280,14 @@ export default function UserAppointmentsPage() {
               prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
             );
           }}
+        />
+
+        <CancelAppointmentModal
+          isOpen={!!cancellingAppointment}
+          appointment={cancellingAppointment}
+          onClose={() => setCancellingAppointment(null)}
+          onConfirmCancel={handleConfirmCancel}
+          role="patient"
         />
       </div>
     </div>

@@ -23,6 +23,7 @@ import {
 import { CLINIC_DOCTORS, type DoctorProfile } from "@/lib/doctors";
 import { formatAppointmentTime } from "@/lib/timezone";
 import { RescheduleModal } from "@/components/appointment/RescheduleModal";
+import { CancelAppointmentModal } from "@/components/appointment/CancelAppointmentModal";
 import { toast } from "sonner";
 
 interface DoctorAppointment {
@@ -52,6 +53,7 @@ export default function DoctorAppointmentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [reschedulingAppointment, setReschedulingAppointment] = useState<any | null>(null);
+  const [cancellingAppointment, setCancellingAppointment] = useState<DoctorAppointment | null>(null);
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState<boolean>(true);
 
   // Initialize doctor session
@@ -140,41 +142,52 @@ export default function DoctorAppointmentsPage() {
     }
   };
 
-  // Mark Completed or Cancelled
-  const handleUpdateStatus = async (apptId: string, status: "completed" | "cancelled") => {
-    let reason = "";
-    if (status === "cancelled") {
-      if (!confirm("Are you sure you want to cancel this appointment? An email notification will automatically be sent to the patient.")) {
-        return;
-      }
-      const enteredReason = prompt("Optional: Enter a reason for cancellation to include in the patient email (e.g., Clinical schedule conflict):");
-      if (enteredReason && enteredReason.trim()) {
-        reason = enteredReason.trim();
-      }
-    }
-
+  // Mark Completed
+  const handleMarkCompleted = async (apptId: string) => {
     setActionLoadingId(apptId);
     try {
       const res = await fetch("/api/doctor/appointments/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appointmentId: apptId, status, reason }),
+        body: JSON.stringify({ appointmentId: apptId, status: "completed" }),
       });
 
       if (res.ok) {
-        if (status === "cancelled") {
-          toast.success("Appointment cancelled & patient notified by email");
-        } else {
-          toast.success("Appointment marked as completed");
-        }
+        toast.success("Appointment marked as completed");
         setAppointments((prev) =>
-          prev.map((a) => (a.id === apptId ? { ...a, status } : a))
+          prev.map((a) => (a.id === apptId ? { ...a, status: "completed" } : a))
         );
       } else {
         toast.error("Failed to update status");
       }
     } catch {
       toast.error("Error updating status");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Modern Modal Cancellation Handler (dispatches email with doctor reason)
+  const handleConfirmCancellation = async (apptId: string, reason: string) => {
+    setActionLoadingId(apptId);
+    try {
+      const res = await fetch("/api/doctor/appointments/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId: apptId, status: "cancelled", reason }),
+      });
+
+      const outcome = await res.json();
+      if (res.ok) {
+        toast.success("Appointment cancelled & patient notified by email");
+        setAppointments((prev) =>
+          prev.map((a) => (a.id === apptId ? { ...a, status: "cancelled" } : a))
+        );
+      } else {
+        toast.error(outcome.error || "Failed to cancel appointment");
+      }
+    } catch {
+      toast.error("Error cancelling appointment");
     } finally {
       setActionLoadingId(null);
     }
@@ -564,7 +577,7 @@ export default function DoctorAppointmentsPage() {
                       {!isCompleted && !isPending && (
                         <button
                           type="button"
-                          onClick={() => handleUpdateStatus(appt.id, "completed")}
+                          onClick={() => handleMarkCompleted(appt.id)}
                           disabled={actionLoadingId === appt.id}
                           className="py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center gap-1.5 transition-colors"
                         >
@@ -588,7 +601,7 @@ export default function DoctorAppointmentsPage() {
                       {!isCompleted && (
                         <button
                           type="button"
-                          onClick={() => handleUpdateStatus(appt.id, "cancelled")}
+                          onClick={() => setCancellingAppointment(appt)}
                           disabled={actionLoadingId === appt.id}
                           className="py-2 px-3 rounded-xl border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 font-semibold text-xs flex items-center gap-1.5 transition-colors"
                         >
@@ -613,6 +626,14 @@ export default function DoctorAppointmentsPage() {
               prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
             );
           }}
+        />
+
+        <CancelAppointmentModal
+          isOpen={!!cancellingAppointment}
+          appointment={cancellingAppointment}
+          onClose={() => setCancellingAppointment(null)}
+          onConfirmCancel={handleConfirmCancellation}
+          role="doctor"
         />
       </div>
     </div>
