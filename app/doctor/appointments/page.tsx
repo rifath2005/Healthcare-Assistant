@@ -361,12 +361,19 @@ export default function DoctorAppointmentsPage() {
               const isCompleted = appt.status === "completed";
               const isPending = appt.status === "pending";
 
+              const nowMs = Date.now();
+              const startMs = new Date(appt.start_time).getTime();
+              const endMs = new Date(appt.end_time).getTime();
+              const isLiveNow = nowMs >= (startMs - 15 * 60 * 1000) && nowMs <= endMs;
+
               return (
                 <div
                   key={appt.id}
                   className={`p-5 rounded-3xl border bg-white dark:bg-slate-900 space-y-4 shadow-xs transition-all ${
                     isCancelled
                       ? "border-slate-200 dark:border-slate-800 opacity-60"
+                      : isLiveNow && !isCompleted
+                      ? "border-emerald-500/80 ring-2 ring-emerald-500/20 shadow-md"
                       : isPending
                       ? "border-amber-300 dark:border-amber-700/60 ring-1 ring-amber-400/40"
                       : "border-slate-200 dark:border-slate-800 hover:border-emerald-500/40"
@@ -419,9 +426,17 @@ export default function DoctorAppointmentsPage() {
 
                   {/* Scheduled Details */}
                   <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      <span className="font-semibold">{formatAppointmentTime(appt.start_time)}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="font-semibold">{formatAppointmentTime(appt.start_time)}</span>
+                      </div>
+                      {isLiveNow && !isCompleted && !isCancelled && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          Live Call Active
+                        </span>
+                      )}
                     </div>
 
                     {!isVirtual && (
@@ -469,10 +484,14 @@ export default function DoctorAppointmentsPage() {
                           href={appt.meet_link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                          className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs ${
+                            isLiveNow
+                              ? "bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500 ring-offset-2 animate-pulse"
+                              : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          }`}
                         >
                           <Video className="w-3.5 h-3.5" />
-                          Join Google Meet
+                          {isLiveNow ? "🔴 Launch Live Google Meet" : "Join Google Meet"}
                         </a>
                       )}
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { decryptClinicalText } from "@/lib/encryption";
 import { CLINIC_DOCTORS } from "@/lib/doctors";
 
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const doctorId = searchParams.get("doctorId");
 
-    const supabase = createServerSupabaseClient();
+    const supabase = createAdminClient();
 
     let query = supabase
       .from("appointments")

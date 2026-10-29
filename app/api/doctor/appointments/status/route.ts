@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
     }
 
-    const supabase = createServerSupabaseClient();
+    const supabase = createAdminClient();
     const { error } = await supabase
       .from("appointments")
       .update({ status, updated_at: new Date().toISOString() })

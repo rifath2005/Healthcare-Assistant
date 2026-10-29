@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { sendDualAppointmentBookingEmails } from "@/lib/resend";
 import { formatAppointmentTime } from "@/lib/timezone";
 import { CLINIC_DOCTORS } from "@/lib/doctors";
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
     }
 
-    const supabase = createServerSupabaseClient();
+    const supabase = createAdminClient();
 
     // 1. Fetch appointment details with patient profile
     const { data: appointment, error: fetchErr } = await supabase

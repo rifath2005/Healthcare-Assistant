@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { createClient as createBaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import ws from "ws";
 import { env } from "@/lib/env";
 
 /**
@@ -57,6 +58,9 @@ export function createAdminClient() {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
+      },
+      realtime: {
+        transport: ws as any,
       },
     }
   );
