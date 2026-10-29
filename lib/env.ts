@@ -19,6 +19,7 @@ const envSchema = z.object({
   // Google Calendar & Service Account
   GOOGLE_CALENDAR_CLIENT_ID: z.string().optional().default(""),
   GOOGLE_CALENDAR_CLIENT_SECRET: z.string().optional().default(""),
+  GOOGLE_REFRESH_TOKEN: z.string().optional().default(""),
   GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().optional().default(""),
   GOOGLE_PRIVATE_KEY: z.string().optional().default(""),
   
@@ -58,6 +59,7 @@ try {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     GOOGLE_CALENDAR_CLIENT_ID: process.env.GOOGLE_CALENDAR_CLIENT_ID,
     GOOGLE_CALENDAR_CLIENT_SECRET: process.env.GOOGLE_CALENDAR_CLIENT_SECRET,
+    GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN,
     GOOGLE_SERVICE_ACCOUNT_EMAIL: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,

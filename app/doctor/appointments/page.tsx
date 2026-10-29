@@ -52,6 +52,7 @@ export default function DoctorAppointmentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [reschedulingAppointment, setReschedulingAppointment] = useState<any | null>(null);
+  const [googleCalendarConnected, setGoogleCalendarConnected] = useState<boolean>(true);
 
   // Initialize doctor session
   useEffect(() => {
@@ -77,6 +78,9 @@ export default function DoctorAppointmentsPage() {
       const data = await res.json();
       if (data.appointments) {
         setAppointments(data.appointments);
+      }
+      if (typeof data.googleCalendarConnected === "boolean") {
+        setGoogleCalendarConnected(data.googleCalendarConnected);
       }
     } catch (err) {
       console.error("Failed to fetch doctor appointments:", err);
@@ -234,6 +238,48 @@ export default function DoctorAppointmentsPage() {
             </button>
           </div>
         </div>
+
+        {/* Google Calendar & Meet Integration Status Banner */}
+        {!googleCalendarConnected ? (
+          <div className="bg-gradient-to-r from-blue-500/10 via-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Video className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  Google Calendar & Meet Integration
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-bold">
+                    Action Recommended
+                  </span>
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Authorize your Google account to automatically generate real, verified Google Meet rooms for telehealth consultations.
+                </p>
+              </div>
+            </div>
+            <a
+              href="/api/auth/google"
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shrink-0 text-center shadow-xs inline-flex items-center justify-center gap-1.5"
+            >
+              <Video className="w-3.5 h-3.5" />
+              Connect Google Calendar
+            </a>
+          </div>
+        ) : (
+          <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-2xl px-4 py-2.5 flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="font-semibold">Google Meet Integration Active</span>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 hidden sm:inline">
+                — Real Google Meet video consultation links are generated automatically upon booking.
+              </span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
+              Live & Verified
+            </span>
+          </div>
+        )}
 
         {/* Metrics Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -478,10 +524,12 @@ export default function DoctorAppointmentsPage() {
                         </button>
                       )}
 
-                      {/* Telehealth Room Link (for virtual) */}
-                      {isVirtual && !isCompleted && (
-                        <Link
-                          href={`/consultation/${appt.id}`}
+                      {/* Google Meet Link (for virtual) */}
+                      {isVirtual && appt.meet_link && !isCompleted && (
+                        <a
+                          href={appt.meet_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs ${
                             isLiveNow
                               ? "bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500 ring-offset-2 animate-pulse"
@@ -489,8 +537,8 @@ export default function DoctorAppointmentsPage() {
                           }`}
                         >
                           <Video className="w-3.5 h-3.5" />
-                          {isLiveNow ? "🔴 Join Live Telehealth Call" : "Launch Telehealth Room"}
-                        </Link>
+                          {isLiveNow ? "🔴 Launch Live Google Meet" : "Join Google Meet"}
+                        </a>
                       )}
 
                       {/* Complete Consultation Button */}

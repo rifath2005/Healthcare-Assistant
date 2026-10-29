@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { decryptClinicalText } from "@/lib/encryption";
 import { CLINIC_DOCTORS } from "@/lib/doctors";
+import { env } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,7 +71,10 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ appointments: formatted });
+    return NextResponse.json({
+      appointments: formatted,
+      googleCalendarConnected: !!(process.env.GOOGLE_REFRESH_TOKEN || (env as any).GOOGLE_REFRESH_TOKEN),
+    });
   } catch (err: any) {
     console.error("Doctor appointments GET exception:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

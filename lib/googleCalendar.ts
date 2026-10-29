@@ -18,23 +18,32 @@ export interface CreatedCalendarEvent {
 }
 
 function getGoogleCalendarClient() {
-  const email = env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  let privateKey = env.GOOGLE_PRIVATE_KEY;
+  const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID || env.GOOGLE_CALENDAR_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET || env.GOOGLE_CALENDAR_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN || env.GOOGLE_REFRESH_TOKEN;
 
-  if (!email || !privateKey) {
-    return null;
+  // 1. Prioritize user OAuth2 (generates official, live Google Meet rooms directly on Google servers)
+  if (clientId && clientSecret && refreshToken) {
+    const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret);
+    oAuth2Client.setCredentials({ refresh_token: refreshToken });
+    return google.calendar({ version: "v3", auth: oAuth2Client });
   }
 
-  // Format newlines in private key if escaped
-  privateKey = privateKey.replace(/\\n/g, "\n");
+  // 2. Service Account fallback
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  let privateKey = process.env.GOOGLE_PRIVATE_KEY || env.GOOGLE_PRIVATE_KEY;
 
-  const auth = new google.auth.JWT({
-    email,
-    key: privateKey,
-    scopes: ["https://www.googleapis.com/auth/calendar"],
-  });
+  if (email && privateKey) {
+    privateKey = privateKey.replace(/\\n/g, "\n");
+    const auth = new google.auth.JWT({
+      email,
+      key: privateKey,
+      scopes: ["https://www.googleapis.com/auth/calendar"],
+    });
+    return google.calendar({ version: "v3", auth });
+  }
 
-  return google.calendar({ version: "v3", auth });
+  return null;
 }
 
 /**

@@ -28,8 +28,31 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data?.session) {
+      const providerRefreshToken = data.session.provider_refresh_token;
+      if (providerRefreshToken) {
+        process.env.GOOGLE_REFRESH_TOKEN = providerRefreshToken;
+        try {
+          const fs = await import("fs");
+          const path = await import("path");
+          const envPath = path.resolve(process.cwd(), ".env.local");
+          if (fs.existsSync(envPath)) {
+            let envContent = fs.readFileSync(envPath, "utf-8");
+            if (envContent.includes("GOOGLE_REFRESH_TOKEN=")) {
+              envContent = envContent.replace(
+                /GOOGLE_REFRESH_TOKEN=.*/g,
+                `GOOGLE_REFRESH_TOKEN=${providerRefreshToken}`
+              );
+            } else {
+              envContent += `\nGOOGLE_REFRESH_TOKEN=${providerRefreshToken}\n`;
+            }
+            fs.writeFileSync(envPath, envContent, "utf-8");
+          }
+        } catch (fileErr) {
+          console.error("Failed to persist GOOGLE_REFRESH_TOKEN:", fileErr);
+        }
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
