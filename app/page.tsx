@@ -43,25 +43,38 @@ export default function HomePage() {
   };
 
   useEffect(() => {
+    let isMounted = true;
     const supabase = createClient();
 
-    // Check active session
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        router.push("/login");
-        return;
-      }
-      setUser(user);
-      setLoadingUser(false);
-    });
+    // Safety timeout: Ensure auth check never hangs longer than 1200ms
+    const authTimer = setTimeout(() => {
+      if (isMounted) setLoadingUser(false);
+    }, 1200);
+
+    // Check active session safely
+    supabase.auth
+      .getUser()
+      .then(({ data }) => {
+        if (!isMounted) return;
+        clearTimeout(authTimer);
+        setUser(data?.user || null);
+        setLoadingUser(false);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        clearTimeout(authTimer);
+        console.warn("Auth check notice:", err);
+        setUser(null);
+        setLoadingUser(false);
+      });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
       if (event === "SIGNED_OUT") {
         setUser(null);
         setLoadingUser(false);
-        router.push("/login");
       } else if (session?.user) {
         setUser(session.user);
         setLoadingUser(false);
@@ -69,9 +82,11 @@ export default function HomePage() {
     });
 
     return () => {
+      isMounted = false;
+      clearTimeout(authTimer);
       subscription.unsubscribe();
     };
-  }, [router]);
+  }, []);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -88,19 +103,6 @@ export default function HomePage() {
     setSessionKey((prev) => prev + 1);
     clearGuestMessages();
   };
-
-  if (loadingUser) {
-    return (
-      <div className="flex flex-col h-screen w-full items-center justify-center bg-white dark:bg-slate-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="p-3 bg-emerald-600 rounded-2xl text-white shadow-lg animate-pulse">
-            <HeartPulse className="w-8 h-8" />
-          </div>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Loading conversation...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-white dark:bg-slate-950">
