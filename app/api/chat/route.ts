@@ -18,6 +18,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { recordGeminiUsage } from "@/lib/telemetry";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {

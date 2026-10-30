@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: process.env.NODE_ENV === "production" ? "standalone" : undefined,
+  output: process.env.NODE_ENV === "production" && !process.env.VERCEL ? "standalone" : undefined,
   experimental: {
     serverComponentsExternalPackages: ["@google/generative-ai"],
   },
