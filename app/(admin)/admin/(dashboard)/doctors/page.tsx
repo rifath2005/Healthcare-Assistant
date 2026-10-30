@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import { Plus, Edit2, Trash2, CheckCircle, XCircle, Stethoscope, Loader2, Save, X, KeyRound, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 
@@ -221,12 +222,15 @@ export default function AdminDoctorsPage() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <img
+                    <Image
                       src={
                         doc.avatar_url ||
                         "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=300"
                       }
                       alt={doc.name}
+                      width={44}
+                      height={44}
+                      unoptimized
                       className="w-11 h-11 rounded-2xl object-cover border border-slate-200 dark:border-slate-700"
                     />
                     <div>

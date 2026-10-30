@@ -136,6 +136,9 @@ export function ChatContainer({
     setVoiceState(state);
   }, []);
 
+  const startListeningLoopRef = useRef<() => void>(() => {});
+  const messagesLengthRef = useRef<number>(0);
+
   // Keep refs in sync with state
   useEffect(() => {
     isVoiceModeRef.current = isVoiceMode;
@@ -148,6 +151,10 @@ export function ChatContainer({
   useEffect(() => {
     isLoadingRef.current = isLoading;
   }, [isLoading]);
+
+  useEffect(() => {
+    messagesLengthRef.current = messages.length;
+  }, [messages.length]);
 
   useEffect(() => {
     pendingVoiceActionRef.current = pendingVoiceAction;
@@ -222,7 +229,7 @@ export function ChatContainer({
         } else {
           updateVoiceState("listening");
         }
-        startListeningLoop();
+        startListeningLoopRef.current();
       },
       onError: (err) => {
         console.warn("TTS error:", err);
@@ -232,7 +239,7 @@ export function ChatContainer({
             updateVoiceState("thinking");
           } else {
             updateVoiceState("listening");
-            startListeningLoop();
+            startListeningLoopRef.current();
           }
         }
       },
@@ -257,7 +264,7 @@ export function ChatContainer({
   useEffect(() => {
     let isMounted = true;
 
-    if (conversationId && conversationId === currentConvIdRef.current && messages.length > 1) {
+    if (conversationId && conversationId === currentConvIdRef.current && messagesLengthRef.current > 1) {
       return;
     }
     currentConvIdRef.current = conversationId || null;
@@ -468,6 +475,7 @@ export function ChatContainer({
       }
     }
   };
+  startListeningLoopRef.current = startListeningLoop;
 
   // Unbreakable self-healing watchdog: restores speech recognition if Chrome or network dropped
   // while the assistant is waiting for user speech
@@ -488,7 +496,7 @@ export function ChatContainer({
         } else {
           updateVoiceState("listening");
         }
-        startListeningLoop();
+        startListeningLoopRef.current();
       }
     }, 1200);
 

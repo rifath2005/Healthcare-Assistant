@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -71,7 +72,7 @@ export default function DoctorAppointmentsPage() {
     }
   }, [router]);
 
-  const loadDoctorAppointments = async (docId?: string, silent = false) => {
+  const loadDoctorAppointments = useCallback(async (docId?: string, silent = false) => {
     const id = docId || currentDoctor?.id;
     if (!id) return;
     if (!silent) setLoading(true);
@@ -92,7 +93,7 @@ export default function DoctorAppointmentsPage() {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, [currentDoctor?.id]);
 
   useEffect(() => {
     if (!currentDoctor?.id) return;
@@ -104,7 +105,7 @@ export default function DoctorAppointmentsPage() {
     }, 10000);
 
     return () => clearInterval(pollInterval);
-  }, [currentDoctor?.id]);
+  }, [currentDoctor?.id, loadDoctorAppointments]);
 
   const handleSignOut = () => {
     localStorage.removeItem("doctor_session");
@@ -219,9 +220,12 @@ export default function DoctorAppointmentsPage() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             {currentDoctor?.avatar_url && (
-              <img
+              <Image
                 src={currentDoctor.avatar_url}
                 alt={currentDoctor.name}
+                width={56}
+                height={56}
+                unoptimized
                 className="w-14 h-14 rounded-2xl object-cover border border-slate-200 dark:border-slate-700 shadow-xs"
               />
             )}
