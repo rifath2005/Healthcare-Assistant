@@ -6,8 +6,6 @@ import { Sparkles, Heart } from "lucide-react";
 interface SentimentIndicatorProps {
   mood?: string;
   intensity?: number;
-  onOpenBreathing?: () => void;
-  onOpenGrounding?: () => void;
 }
 
 export function SentimentIndicator({
@@ -33,10 +31,6 @@ export function SentimentIndicator({
           </span>
         )}
       </div>
-
-      <span className="text-[11px] text-slate-400 dark:text-slate-500 hidden sm:inline-block">
-        Calming & grounding tools relocated to sidebar
-      </span>
     </div>
   );
 }

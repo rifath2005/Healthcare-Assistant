@@ -7,7 +7,6 @@ import { ConsentModal } from "@/components/ui/ConsentModal";
 import { ChatContainer } from "@/components/chat/ChatContainer";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { useWellnessTools } from "@/components/wellness/useWellnessTools";
 import { createClient } from "@/lib/supabase/client";
 import { clearGuestMessages } from "@/lib/supabase/syncGuestSession";
 import {
@@ -23,7 +22,6 @@ import { toast } from "sonner";
 
 export default function HomePage() {
   const router = useRouter();
-  const wellness = useWellnessTools();
   const [user, setUser] = useState<any | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -194,8 +192,6 @@ export default function HomePage() {
           onNewConversation={handleNewConversation}
           isOpen={isSidebarOpen}
           onCloseMobile={handleCloseMobile}
-          onOpenBreathing={wellness.openBreathing}
-          onOpenGrounding={wellness.openGrounding}
         />
 
         <main className="flex-1 flex flex-col h-full overflow-hidden">
@@ -205,10 +201,6 @@ export default function HomePage() {
             onConversationCreated={(newId) => setActiveConversationId(newId)}
             onNewConversation={handleNewConversation}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-            showBreathing={wellness.showBreathing}
-            showGrounding={wellness.showGrounding}
-            onCloseBreathing={wellness.closeBreathing}
-            onCloseGrounding={wellness.closeGrounding}
           />
         </main>
       </div>

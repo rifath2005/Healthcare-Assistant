@@ -6,8 +6,6 @@ import { MessageBubble, type Citation } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { CrisisBanner } from "./CrisisBanner";
 import { SentimentIndicator } from "./SentimentIndicator";
-import { BreathingExercise } from "@/components/wellness/BreathingExercise";
-import { GroundingWidget } from "@/components/wellness/GroundingWidget";
 import { BookingModal } from "@/components/appointment/BookingModal";
 import { ExportSummaryModal } from "./ExportSummaryModal";
 import { VoiceHUD, type VoiceState, type TaskVerificationStatus } from "./VoiceHUD";
@@ -60,7 +58,7 @@ const INITIAL_WELCOME_MESSAGE: Message = {
   id: "welcome-msg",
   role: "assistant",
   content:
-    "Hello! I am your Smart Healthcare Assistant. You can ask me health and wellness questions, describe symptoms you are experiencing, learn about medical conditions and preventive care, or practice guided breathing exercises.\n\n*Reminder: I provide evidence-grounded health literacy and guidance, not formal clinical diagnoses or prescription medication.*",
+    "Hello! I am your Smart Healthcare Assistant. You can ask me health questions, describe symptoms you are experiencing, or learn about medical conditions and preventive care.\n\n*Reminder: I provide evidence-grounded health literacy and guidance, not formal clinical diagnoses or prescription medication.*",
 };
 
 const SUGGESTION_CHIPS = [
@@ -75,10 +73,6 @@ export function ChatContainer({
   onConversationCreated,
   onNewConversation,
   onToggleSidebar,
-  showBreathing: externalShowBreathing,
-  showGrounding: externalShowGrounding,
-  onCloseBreathing,
-  onCloseGrounding,
 }: ChatContainerProps) {
   const [messages, setMessages] = useState<Message[]>([INITIAL_WELCOME_MESSAGE]);
   const currentConvIdRef = useRef<string | null>(conversationId || null);
@@ -91,17 +85,9 @@ export function ChatContainer({
   }>({ triggered: false });
 
   const [detectedMood, setDetectedMood] = useState<string>("neutral");
-  const [internalShowBreathing, setInternalShowBreathing] = useState(false);
-  const [internalShowGrounding, setInternalShowGrounding] = useState(false);
   const [showBooking, setShowBooking] = useState(false);
   const [bookingMode, setBookingMode] = useState<"virtual" | "direct">("virtual");
   const [showExport, setShowExport] = useState(false);
-
-  // Wellness tools visibility resolution (controlled via props or fallback to internal)
-  const isBreathingVisible = externalShowBreathing !== undefined ? externalShowBreathing : internalShowBreathing;
-  const isGroundingVisible = externalShowGrounding !== undefined ? externalShowGrounding : internalShowGrounding;
-  const handleCloseBreathing = onCloseBreathing || (() => setInternalShowBreathing(false));
-  const handleCloseGrounding = onCloseGrounding || (() => setInternalShowGrounding(false));
 
   // --- Voice / Talkative Mode State ---
   const [isVoiceMode, setIsVoiceMode] = useState(false);
@@ -1339,7 +1325,7 @@ export function ChatContainer({
               onClick={onToggleSidebar}
               className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors shrink-0"
               aria-label="Toggle sidebar"
-              title="Toggle sidebar & wellness tools"
+              title="Toggle sidebar"
             >
               <Menu className="w-4 h-4" />
             </button>
@@ -1470,16 +1456,6 @@ export function ChatContainer({
             severity={crisisState.severity}
             trigger={crisisState.trigger}
           />
-        )}
-
-        {/* Breathing Exercise Drawer */}
-        {isBreathingVisible && (
-          <BreathingExercise onClose={handleCloseBreathing} />
-        )}
-
-        {/* Grounding Exercise Drawer */}
-        {isGroundingVisible && (
-          <GroundingWidget onClose={handleCloseGrounding} />
         )}
 
         {messages.map((m, idx) => (

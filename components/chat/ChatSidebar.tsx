@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { MessageSquare, Plus, Trash2, Edit2, Check, X, Calendar, History, Clock, Wind, Anchor, Sparkles } from "lucide-react";
+import { MessageSquare, Plus, Trash2, Edit2, Check, X, Calendar, History, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -29,8 +29,6 @@ export function ChatSidebar({
   onNewConversation,
   isOpen,
   onCloseMobile,
-  onOpenBreathing,
-  onOpenGrounding,
 }: ChatSidebarProps) {
   const [threads, setThreads] = useState<ConversationThread[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -163,72 +161,6 @@ export function ChatSidebar({
             <Plus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>New Consultation</span>
           </button>
-        </div>
-
-        {/* Relocated Breathing & Grounding Wellness Tools in Sidebar */}
-        <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-2 bg-emerald-50/20 dark:bg-emerald-950/10">
-          <div className="flex items-center gap-1.5 px-0.5">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-              Wellness & Calming Tools
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                onOpenBreathing?.();
-                onCloseMobile();
-              }}
-              className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 text-left transition-all shadow-2xs group"
-              title="Start guided 4-7-8 diaphragmatic breathing exercise"
-            >
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 group-hover:scale-105 transition-transform">
-                  <Wind className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                    4-7-8 Breathing
-                  </p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                    Inhale & Exhale Pacing
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
-                Start
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                onOpenGrounding?.();
-                onCloseMobile();
-              }}
-              className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 border border-slate-200 dark:border-slate-700 hover:border-teal-300 dark:hover:border-teal-700 text-left transition-all shadow-2xs group"
-              title="Start 5-4-3-2-1 sensory grounding exercise"
-            >
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-teal-100 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 group-hover:scale-105 transition-transform">
-                  <Anchor className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-teal-600 dark:group-hover:text-teal-400">
-                    5-4-3-2-1 Grounding
-                  </p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                    Sensory Anxiety Relief
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
-                Start
-              </span>
-            </button>
-          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-4">
