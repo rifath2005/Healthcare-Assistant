@@ -29,7 +29,7 @@ export interface VoiceTtsOptions {
 }
 
 export const SPOKEN_MEDICAL_DISCLAIMER =
-  "Please keep in mind that my responses provide general health information and are not a substitute for clinical medical evaluation. In an emergency, call 911 or 988 immediately.";
+  "Provides general health information only; for emergencies call 112 or 108 (or 911/988).";
 
 export class VoiceTtsManager {
   private queue: string[] = [];
@@ -44,7 +44,7 @@ export class VoiceTtsManager {
 
   constructor(options: VoiceTtsOptions = {}) {
     this.options = {
-      rate: 1.0,
+      rate: 0.98, // Natural, warm human speaking pace
       pitch: 1.0,
       ttsProvider: "auto",
       vexylLang: "en-IN",
@@ -197,6 +197,7 @@ export class VoiceTtsManager {
     return raw
       .replace(/\[\d+\](?:\s*,\s*\[\d+\])*/g, "") // remove [1], [2] citations
       .replace(/https?:\/\/\S+/gi, "") // remove raw URLs
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // markdown links -> link text
       .replace(/[*_#`~>]/g, "") // strip markdown symbols
       .replace(/\n+/g, ". ") // replace newlines with sentence pauses
       .replace(/\s{2,}/g, " ") // collapse multiple spaces
@@ -403,7 +404,7 @@ export class VoiceTtsManager {
       }
 
       const utterance = new UtteranceConstructor(nextSentence);
-      utterance.rate = this.options.rate || 1.0;
+      utterance.rate = this.options.rate || 0.98;
       utterance.pitch = this.options.pitch || 1.0;
       utterance.lang = "en-US";
 
@@ -413,8 +414,21 @@ export class VoiceTtsManager {
         try {
           const voices = window.speechSynthesis.getVoices();
           if (voices && voices.length > 0) {
+            // Rank by lifelike human neural prosody: Microsoft Online (Natural) -> Google -> Apple Enhanced/Premium -> Standard English
             const naturalVoice =
-              voices.find((v) => v.lang.startsWith("en") && (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Online"))) ||
+              voices.find(
+                (v) =>
+                  v.lang.startsWith("en") &&
+                  (v.name.includes("Online (Natural)") ||
+                    v.name.includes("Neural") ||
+                    v.name.includes("Enhanced") ||
+                    v.name.includes("Premium"))
+              ) ||
+              voices.find(
+                (v) =>
+                  v.lang.startsWith("en") &&
+                  (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Samantha"))
+              ) ||
               voices.find((v) => v.lang.startsWith("en"));
             if (naturalVoice) {
               utterance.voice = naturalVoice;

@@ -4,6 +4,7 @@ import { deleteCalendarAppointment, createCalendarAppointment } from "@/lib/goog
 import { sendDualAppointmentBookingEmails } from "@/lib/resend";
 import { formatAppointmentTime } from "@/lib/timezone";
 import { CLINIC_DOCTORS } from "@/lib/doctors";
+import { fetchAppointmentWithProfile } from "@/lib/appointmentQuery";
 
 export const runtime = "nodejs";
 
@@ -21,14 +22,10 @@ export async function POST(req: NextRequest) {
 
     const adminSupabase = createAdminClient();
 
-    // 1. Fetch existing appointment with patient profile
-    const { data: appointment, error: fetchErr } = await adminSupabase
-      .from("appointments")
-      .select("*, profiles!appointments_user_id_fkey(full_name, email)")
-      .eq("id", appointmentId)
-      .single();
+    // 1. Fetch existing appointment with patient profile using resilient helper
+    const appointment = await fetchAppointmentWithProfile(adminSupabase, appointmentId);
 
-    if (fetchErr || !appointment) {
+    if (!appointment) {
       return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
     }
 

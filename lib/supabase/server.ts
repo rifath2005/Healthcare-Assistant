@@ -47,6 +47,11 @@ export function createServerSupabaseClient() {
 }
 
 /**
+ * Standard alias for createServerSupabaseClient using @supabase/ssr.
+ */
+export const createClient = createServerSupabaseClient;
+
+/**
  * Creates an administrative Supabase client using SUPABASE_SERVICE_ROLE_KEY.
  * Bypasses Row Level Security (RLS). Must ONLY be used in secure server contexts!
  */

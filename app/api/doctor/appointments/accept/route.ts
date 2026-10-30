@@ -3,6 +3,8 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { sendDualAppointmentBookingEmails } from "@/lib/resend";
 import { formatAppointmentTime } from "@/lib/timezone";
 import { CLINIC_DOCTORS } from "@/lib/doctors";
+import { getAuthenticatedDoctor } from "@/lib/doctorAuth";
+import { fetchAppointmentWithProfile } from "@/lib/appointmentQuery";
 
 export const runtime = "nodejs";
 
@@ -14,17 +16,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
     }
 
+    // Authenticate clinician caller and protect against BOLA
+    const doctor = await getAuthenticatedDoctor(req);
+    if (!doctor && process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "Unauthorized: Clinician or administrative authentication required" },
+        { status: 401 }
+      );
+    }
+
     const supabase = createAdminClient();
 
-    // 1. Fetch appointment details with patient profile
-    const { data: appointment, error: fetchErr } = await supabase
-      .from("appointments")
-      .select("*, profiles!appointments_user_id_fkey(full_name, email)")
-      .eq("id", appointmentId)
-      .single();
+    // 1. Fetch appointment details with patient profile using resilient helper
+    const appointment = await fetchAppointmentWithProfile(supabase, appointmentId);
 
-    if (fetchErr || !appointment) {
+    if (!appointment) {
       return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+    }
+
+    // Ensure doctor is only accepting their assigned appointment unless admin
+    if (doctor && !doctor.isAdmin && appointment.doctor_id && doctor.id !== appointment.doctor_id) {
+      const doctorProfile = CLINIC_DOCTORS.find((d) => d.id === doctor.id);
+      const docLastName = doctorProfile?.name?.replace(/^Dr\.\s*/, "").split(",")[0].trim().toLowerCase();
+      const isNameMatch = docLastName && appointment.doctor_name?.toLowerCase().includes(docLastName);
+      if (!isNameMatch) {
+        return NextResponse.json(
+          { error: "Forbidden: You are not authorized to accept appointments for other physicians." },
+          { status: 403 }
+        );
+      }
     }
 
     // 2. Update status to confirmed

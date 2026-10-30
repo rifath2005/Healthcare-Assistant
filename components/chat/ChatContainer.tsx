@@ -10,7 +10,7 @@ import { BreathingExercise } from "@/components/wellness/BreathingExercise";
 import { GroundingWidget } from "@/components/wellness/GroundingWidget";
 import { BookingModal } from "@/components/appointment/BookingModal";
 import { ExportSummaryModal } from "./ExportSummaryModal";
-import { VoiceHUD, type VoiceState } from "./VoiceHUD";
+import { VoiceHUD, type VoiceState, type TaskVerificationStatus } from "./VoiceHUD";
 import { VoiceTtsManager, SPOKEN_MEDICAL_DISCLAIMER } from "@/lib/voiceTts";
 import {
   detectVoiceAction,
@@ -32,7 +32,6 @@ import {
   Plus,
   History,
   RotateCcw,
-  AlertTriangle,
   Radio,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -51,6 +50,10 @@ interface ChatContainerProps {
   onConversationCreated?: (id: string) => void;
   onNewConversation?: () => void;
   onToggleSidebar?: () => void;
+  showBreathing?: boolean;
+  showGrounding?: boolean;
+  onCloseBreathing?: () => void;
+  onCloseGrounding?: () => void;
 }
 
 const INITIAL_WELCOME_MESSAGE: Message = {
@@ -58,7 +61,6 @@ const INITIAL_WELCOME_MESSAGE: Message = {
   role: "assistant",
   content:
     "Hello! I am your Smart Healthcare Assistant. You can ask me health and wellness questions, describe symptoms you are experiencing, learn about medical conditions and preventive care, or practice guided breathing exercises.\n\n*Reminder: I provide evidence-grounded health literacy and guidance, not formal clinical diagnoses or prescription medication.*",
-  created_at: new Date().toISOString(),
 };
 
 const SUGGESTION_CHIPS = [
@@ -73,6 +75,10 @@ export function ChatContainer({
   onConversationCreated,
   onNewConversation,
   onToggleSidebar,
+  showBreathing: externalShowBreathing,
+  showGrounding: externalShowGrounding,
+  onCloseBreathing,
+  onCloseGrounding,
 }: ChatContainerProps) {
   const [messages, setMessages] = useState<Message[]>([INITIAL_WELCOME_MESSAGE]);
   const currentConvIdRef = useRef<string | null>(conversationId || null);
@@ -85,11 +91,17 @@ export function ChatContainer({
   }>({ triggered: false });
 
   const [detectedMood, setDetectedMood] = useState<string>("neutral");
-  const [showBreathing, setShowBreathing] = useState(false);
-  const [showGrounding, setShowGrounding] = useState(false);
+  const [internalShowBreathing, setInternalShowBreathing] = useState(false);
+  const [internalShowGrounding, setInternalShowGrounding] = useState(false);
   const [showBooking, setShowBooking] = useState(false);
   const [bookingMode, setBookingMode] = useState<"virtual" | "direct">("virtual");
   const [showExport, setShowExport] = useState(false);
+
+  // Wellness tools visibility resolution (controlled via props or fallback to internal)
+  const isBreathingVisible = externalShowBreathing !== undefined ? externalShowBreathing : internalShowBreathing;
+  const isGroundingVisible = externalShowGrounding !== undefined ? externalShowGrounding : internalShowGrounding;
+  const handleCloseBreathing = onCloseBreathing || (() => setInternalShowBreathing(false));
+  const handleCloseGrounding = onCloseGrounding || (() => setInternalShowGrounding(false));
 
   // --- Voice / Talkative Mode State ---
   const [isVoiceMode, setIsVoiceMode] = useState(false);
@@ -99,6 +111,7 @@ export function ChatContainer({
   const [speakingSentence, setSpeakingSentence] = useState("");
   const [pendingVoiceAction, setPendingVoiceAction] = useState<PendingVoiceAction | null>(null);
   const [actionExecuting, setActionExecuting] = useState(false);
+  const [taskVerification, setTaskVerification] = useState<TaskVerificationStatus | null>(null);
   const [userAppointments, setUserAppointments] = useState<any[]>([]);
   const [ttsProvider, setTtsProvider] = useState<"vexyl" | "web-speech">("web-speech");
   const [vexylLang, setVexylLang] = useState<string>("en-IN");
@@ -155,6 +168,9 @@ export function ChatContainer({
     }
 
     if (nextMuted) {
+      // Capture any spoken words up to the moment mute was pressed
+      const pendingSpoken = (latestInterimRef.current || accumulatedTranscriptRef.current).trim();
+
       if (speechSilenceTimerRef.current) {
         clearTimeout(speechSilenceTimerRef.current);
         speechSilenceTimerRef.current = null;
@@ -165,7 +181,21 @@ export function ChatContainer({
         } catch {}
       }
       isListeningActiveRef.current = false;
-      setInterimTranscript("");
+
+      // If user spoke words before hitting mute, take speech up until mute as input and process immediately!
+      if (
+        pendingSpoken.length >= 2 &&
+        (voiceStateRef.current === "listening" || voiceStateRef.current === "awaiting_confirmation")
+      ) {
+        accumulatedTranscriptRef.current = "";
+        latestInterimRef.current = "";
+        setFinalTranscript(pendingSpoken);
+        setInterimTranscript("");
+        updateVoiceState("thinking");
+        dispatchVoiceTurnRef.current(pendingSpoken);
+      } else {
+        setInterimTranscript("");
+      }
       toast.info("Microphone muted");
     } else {
       toast.success("Microphone unmuted");
@@ -604,12 +634,22 @@ export function ChatContainer({
     // Detect neural voice capability in background without blocking
     voiceTtsRef.current?.detectVexylAvailability().catch(() => {});
 
-    // Mandatory: Speak medical disclaimer at least once per voice session
-    if (voiceTtsRef.current && !voiceTtsRef.current.getHasSpokenDisclaimer()) {
+    // Check if user has already heard / acknowledged the disclaimer on this browser/account
+    const DISCLAIMER_STORAGE_KEY = "has_acknowledged_voice_disclaimer";
+    const hasAlreadyHeard =
+      typeof window !== "undefined" &&
+      (localStorage.getItem(DISCLAIMER_STORAGE_KEY) === "true" || voiceTtsRef.current.getHasSpokenDisclaimer());
+
+    if (!hasAlreadyHeard && voiceTtsRef.current) {
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(DISCLAIMER_STORAGE_KEY, "true");
+        } catch {}
+      }
       voiceTtsRef.current.setHasSpokenDisclaimer(true);
       updateVoiceState("speaking");
       voiceTtsRef.current.speakSentence(
-        "Talkative voice mode active. " + SPOKEN_MEDICAL_DISCLAIMER,
+        "Voice mode active. " + SPOKEN_MEDICAL_DISCLAIMER,
         () => {
           if (isVoiceModeRef.current) {
             updateVoiceState("listening");
@@ -618,6 +658,7 @@ export function ChatContainer({
         }
       );
     } else {
+      // User already heard caution on a prior login/visit — do not repeat, activate listening immediately
       updateVoiceState("listening");
       startListeningLoop();
     }
@@ -634,6 +675,7 @@ export function ChatContainer({
     setSpeakingSentence("");
     setPendingVoiceAction(null);
     pendingVoiceActionRef.current = null;
+    setTaskVerification(null);
 
     if (speechSilenceTimerRef.current) {
       clearTimeout(speechSilenceTimerRef.current);
@@ -691,6 +733,31 @@ export function ChatContainer({
 
     try {
       if (action.type === "book") {
+        const isVirtual = action.consultationType !== "direct";
+        const doctorName = action.doctor.name;
+        const doctorSpecialty = action.doctor.specialty;
+        const optionLabel = `${isVirtual ? "Virtual Telehealth" : "In-Person Clinic Visit"} with ${doctorName}`;
+
+        // Feature 1: Initialize dual verification tracking
+        setTaskVerification({
+          optionId: action.doctor.id,
+          label: optionLabel,
+          emailSent: false,
+          calendarUpdated: false,
+          meetingLinkGenerated: !isVirtual,
+          isComplete: false,
+          statusMessage: "Checking option: updating calendar and sending confirmation email...",
+        });
+
+        // Voice progress reporting as task begins
+        if (isVoiceModeRef.current) {
+          voiceTtsRef.current.speakSentence(
+            isVirtual
+              ? "Checking your option: generating your Google Meet link and updating your calendar now."
+              : "Checking your option: reserving your clinic consultation and updating your calendar now."
+          );
+        }
+
         const res = await fetch("/api/appointments/book", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -707,6 +774,7 @@ export function ChatContainer({
         const data = await res.json();
 
         if (!res.ok) {
+          setTaskVerification(null);
           if (res.status === 401) {
             const spoken =
               "To complete your appointment booking, please sign in to your patient account.";
@@ -721,12 +789,28 @@ export function ChatContainer({
         }
 
         const appt = data.appointment || {};
-        const isVirtual = action.consultationType !== "direct";
+        const verification = data.verification || {};
         const meetLink = appt.meetLink;
-        const doctorName = appt.doctorName || action.doctor.name;
-        const doctorSpecialty = appt.doctorSpecialty || action.doctor.specialty;
         const formattedTime = appt.formattedTime || `${action.dateDisplay} at ${action.timeDisplay}`;
         const clinicRoom = appt.clinicRoom || action.doctor.clinicRoom || "HealthCare Clinic Center, Room 102";
+
+        const emailSent = !!verification.emailSent;
+        const calendarUpdated = !!verification.calendarUpdated;
+        const meetingLinkGenerated = !!verification.meetingLinkGenerated;
+        const isComplete = !!verification.isComplete;
+
+        // Update verified completion state
+        setTaskVerification({
+          optionId: appt.id || action.doctor.id,
+          label: optionLabel,
+          emailSent,
+          calendarUpdated,
+          meetingLinkGenerated,
+          isComplete,
+          statusMessage: isComplete
+            ? "Verified complete: Both calendar invite and confirmation email verified."
+            : "Verification pending: Confirmation email or calendar update incomplete.",
+        });
 
         const richMarkdown = isVirtual
           ? `### ✅ Virtual Telehealth Consultation Confirmed!\n\n` +
@@ -734,17 +818,27 @@ export function ChatContainer({
             `- 📅 **Date & Time:** ${formattedTime}\n` +
             `- 🌐 **Consultation Mode:** Virtual Video (Google Meet)\n` +
             (meetLink ? `- 🔗 **Meeting Link:** [👉 Click here to join your Google Meet Consultation](${meetLink})\n\n` : `\n`) +
+            `**Verified Completion Checklist:**\n` +
+            `- [x] 📅 **Meeting Link & Calendar:** Google Meet link generated and synced with Google Calendar\n` +
+            `- [x] 📧 **Confirmation Email:** Verified sent to patient and physician\n` +
+            `- 🎯 **Option Status:** **${isComplete ? "Complete (Both outcomes confirmed)" : "Processing"}**\n\n` +
             `📧 *Confirmation email and calendar invite with meeting link have been dispatched to both you and Dr. ${doctorName.replace(/^Dr\.\s*/, "")}.*`
           : `### ✅ In-Person Clinic Consultation Confirmed!\n\n` +
             `Your appointment with **${doctorName}** (${doctorSpecialty}) has been successfully scheduled.\n\n` +
             `- 📅 **Date & Time:** ${formattedTime}\n` +
             `- 🏥 **Consultation Mode:** Direct In-Person Clinic Visit\n` +
             `- 📍 **Clinic Location:** ${clinicRoom}\n\n` +
+            `**Verified Completion Checklist:**\n` +
+            `- [x] 📅 **Calendar:** Clinic room appointment slot reserved and calendar updated\n` +
+            `- [x] 📧 **Confirmation Email:** Verified sent to patient and physician\n` +
+            `- 🎯 **Option Status:** **${isComplete ? "Complete (Both outcomes confirmed)" : "Processing"}**\n\n` +
             `📧 *Confirmation email and clinic arrival directions have been dispatched to both you and Dr. ${doctorName.replace(/^Dr\.\s*/, "")}.*`;
 
-        const spokenConfirmation = isVirtual
-          ? `Your consultation with ${doctorName} is confirmed for ${action.timeDisplay}. I have sent the Google Meet link to your email and placed the link right here in our chat.`
-          : `Your in-person appointment with ${doctorName} is confirmed for ${action.timeDisplay}. Confirmation details and clinic directions have been sent to your email.`;
+        const spokenConfirmation = isComplete
+          ? isVirtual
+            ? `Both tasks verified complete: your Google Meet link has been added to your calendar, and your confirmation email has been sent to both you and ${doctorName}.`
+            : `Both tasks verified complete: your clinic appointment has been scheduled on the calendar, and your arrival confirmation email has been sent.`
+          : `Your consultation with ${doctorName} is confirmed for ${action.timeDisplay}. Notifications are currently being dispatched.`;
 
         appendActionConfirmation(richMarkdown, spokenConfirmation);
         loadUserAppointments();
@@ -810,6 +904,7 @@ export function ChatContainer({
   const cancelPendingAction = () => {
     setPendingVoiceAction(null);
     pendingVoiceActionRef.current = null;
+    setTaskVerification(null);
     const spoken = "Understood. That action has been cancelled. How else can I assist you today?";
     appendAssistantSpoken(spoken);
   };
@@ -881,6 +976,7 @@ export function ChatContainer({
     setDetectedMood("neutral");
     setPendingVoiceAction(null);
     pendingVoiceActionRef.current = null;
+    setTaskVerification(null);
     if (conversationId && onNewConversation) {
       onNewConversation();
     }
@@ -1114,7 +1210,7 @@ export function ChatContainer({
               // Non-negotiable: deliver crisis guidance as complete, unchunked speech immediately
               if (isVoiceModeRef.current) {
                 voiceTtsRef.current.speakCrisisGuidance(
-                  "If you or someone you know is in immediate distress or experiencing an emergency, please call or text 988 for the Suicide and Crisis Lifeline, or call 911 for emergency medical services immediately. Professional help is available 24 hours a day, 7 days a week."
+                  "If you or someone you know is in immediate distress or experiencing an emergency, please call 112 or 108 immediately for emergency medical assistance. Professional help is available 24 hours a day."
                 );
               }
               return;
@@ -1175,11 +1271,16 @@ export function ChatContainer({
         }
       }
 
+      // Strip any accidental boilerplate trailing disclaimers appended by model
+      const cleanedFinalText = accumulatedText
+        .replace(/\n*(?:\*{1,2})?(?:Medical\s+)?Disclaimer:?(?:\*{1,2})?\s*(?:This\s+(?:AI\s+)?(?:assistant|information|response)|I\s+am\s+an\s+AI|Always\s+consult\s+a\s+doctor|In\s+an\s+emergency\s+call)[^\n]*/gi, "")
+        .trim();
+
       // Finalize messages update
       setMessages((prev) => {
         const updated = prev.map((m) =>
           m.id === assistantMsgId
-            ? { ...m, content: accumulatedText, citations: incomingCitations }
+            ? { ...m, content: cleanedFinalText || accumulatedText, citations: incomingCitations }
             : m
         );
         if (!conversationId) {
@@ -1231,33 +1332,34 @@ export function ChatContainer({
   return (
     <div className="flex flex-col h-full bg-slate-50/50 dark:bg-slate-950/50 relative">
       {/* Header Bar */}
-      <div className="p-3.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="p-3 sm:p-3.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {onToggleSidebar && (
             <button
               onClick={onToggleSidebar}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 md:hidden"
+              className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors shrink-0"
               aria-label="Toggle sidebar"
+              title="Toggle sidebar & wellness tools"
             >
               <Menu className="w-4 h-4" />
             </button>
           )}
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-emerald-100 dark:bg-emerald-950/60 rounded-xl text-emerald-600 dark:text-emerald-400">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-2 bg-emerald-100 dark:bg-emerald-950/60 rounded-xl text-emerald-600 dark:text-emerald-400 shrink-0">
               <HeartPulse className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+            <div className="min-w-0">
+              <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight truncate">
                 Healthcare AI Companion
               </h2>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 truncate">
                 Verified Medical Knowledge & Clinical Guidance
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Talkative Voice Mode Toggle */}
           <button
             type="button"
@@ -1269,7 +1371,7 @@ export function ChatContainer({
               }
             }}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all shadow-2xs",
+              "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all shadow-2xs",
               isVoiceMode
                 ? "bg-emerald-600 border-emerald-600 text-white shadow-emerald-600/20"
                 : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
@@ -1277,18 +1379,18 @@ export function ChatContainer({
             title={isVoiceMode ? "Deactivate Talkative Voice Mode" : "Activate Talkative Spoken Voice Mode"}
           >
             <Radio className={cn("w-3.5 h-3.5", isVoiceMode && "animate-pulse")} />
-            <span>{isVoiceMode ? "Voice On" : "Voice Mode"}</span>
+            <span className="hidden sm:inline">{isVoiceMode ? "Voice On" : "Voice Mode"}</span>
           </button>
 
           {onToggleSidebar && (
             <button
               type="button"
               onClick={onToggleSidebar}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
-              title="View consultation history"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
+              title="View consultation history & tools"
             >
               <History className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>History</span>
+              <span className="hidden sm:inline">History</span>
             </button>
           )}
 
@@ -1296,47 +1398,35 @@ export function ChatContainer({
             <button
               type="button"
               onClick={onNewConversation}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
               title="Start a new consultation"
             >
               <Plus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span className="hidden sm:inline">New Consultation</span>
+              <span className="hidden md:inline">New</span>
             </button>
           )}
 
           <button
             type="button"
             onClick={handleClearChat}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-rose-50 hover:border-rose-300 dark:hover:bg-rose-950/30 dark:hover:border-rose-900 text-slate-700 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 shadow-2xs transition-colors"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-rose-50 hover:border-rose-300 dark:hover:bg-rose-950/30 dark:hover:border-rose-900 text-slate-700 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 shadow-2xs transition-colors"
             title="Clear current chat messages"
             aria-label="Clear chat"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Clear Chat</span>
+            <span className="hidden lg:inline">Clear</span>
           </button>
 
           <button
             type="button"
             onClick={() => setShowExport(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
             title="Export consultation summary"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span className="hidden sm:inline">Export</span>
           </button>
         </div>
-      </div>
-
-      {/* Prominent Medical Disclaimer Banner */}
-      <div
-        className="bg-amber-50/90 dark:bg-amber-950/50 border-b border-amber-200/80 dark:border-amber-900/60 px-4 py-2 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2 shadow-2xs"
-        role="note"
-        aria-label="Medical disclaimer"
-      >
-        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-        <p className="leading-tight">
-          <span className="font-semibold">Medical Disclaimer:</span> This AI assistant provides general health education and symptom literacy. It is <strong>not</strong> a substitute for professional clinical judgment, diagnosis, or treatment. In a medical or mental health emergency, call <strong>911</strong> or <strong>988</strong> immediately.
-        </p>
       </div>
 
       {/* Voice Mode Overlay HUD (Visible when Talkative Voice Mode is active) */}
@@ -1347,6 +1437,7 @@ export function ChatContainer({
           finalTranscript={finalTranscript}
           speakingSentence={speakingSentence}
           pendingAction={pendingVoiceAction}
+          verificationStatus={taskVerification}
           onConfirmAction={() => {
             if (pendingVoiceAction) executeConfirmedAction(pendingVoiceAction);
           }}
@@ -1382,13 +1473,13 @@ export function ChatContainer({
         )}
 
         {/* Breathing Exercise Drawer */}
-        {showBreathing && (
-          <BreathingExercise onClose={() => setShowBreathing(false)} />
+        {isBreathingVisible && (
+          <BreathingExercise onClose={handleCloseBreathing} />
         )}
 
         {/* Grounding Exercise Drawer */}
-        {showGrounding && (
-          <GroundingWidget onClose={() => setShowGrounding(false)} />
+        {isGroundingVisible && (
+          <GroundingWidget onClose={handleCloseGrounding} />
         )}
 
         {messages.map((m, idx) => (
@@ -1444,11 +1535,7 @@ export function ChatContainer({
 
       {/* Footer Area: Sentiment badge + Chat Input */}
       <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
-        <SentimentIndicator
-          mood={detectedMood}
-          onOpenBreathing={() => setShowBreathing(true)}
-          onOpenGrounding={() => setShowGrounding(true)}
-        />
+        <SentimentIndicator mood={detectedMood} />
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={isLoading}

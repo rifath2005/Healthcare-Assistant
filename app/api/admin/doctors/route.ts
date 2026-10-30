@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createAdminClient } from "@/lib/supabase/server";
+import { getAuthenticatedDoctor } from "@/lib/doctorAuth";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,54 @@ const DEFAULT_WORKING_HOURS = {
   friday: { start: "09:00", end: "16:00" },
 };
 
-export async function GET() {
+/**
+ * Validates that the requesting caller has administrator privileges.
+ */
+async function requireAdminAuth(req: NextRequest): Promise<NextResponse | null> {
+  // 1. Check doctor/admin session cookie
+  const doctor = await getAuthenticatedDoctor(req);
+  if (doctor?.isAdmin) {
+    return null;
+  }
+
+  // 2. Check Supabase server session
+  try {
+    const supabase = createServerSupabaseClient();
+    const {
+      data: { user },
+      error: authErr,
+    } = await supabase.auth.getUser();
+
+    if (!authErr && user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.role === "admin") {
+        return null;
+      }
+    }
+  } catch {
+    // continue to fallback check
+  }
+
+  // 3. Dev / test bypass
+  if (process.env.NODE_ENV !== "production") {
+    const adminHeader = req.headers.get("x-admin-token");
+    if (adminHeader === "admin-dev-secret") {
+      return null;
+    }
+  }
+
+  return NextResponse.json(
+    { error: "Forbidden: Administrative privileges required to manage physician directory." },
+    { status: 403 }
+  );
+}
+
+export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { data: doctors, error } = await supabase
@@ -33,6 +81,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const authError = await requireAdminAuth(req);
+    if (authError) return authError;
+
     const body = await req.json();
     const { name, specialty, bio, avatar_url, calendar_id, working_hours, is_active } = body;
 
@@ -90,6 +141,9 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const authError = await requireAdminAuth(req);
+    if (authError) return authError;
+
     const body = await req.json();
     const { id, name, specialty, bio, avatar_url, calendar_id, working_hours, is_active } = body;
 
@@ -127,6 +181,9 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const authError = await requireAdminAuth(req);
+    if (authError) return authError;
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 

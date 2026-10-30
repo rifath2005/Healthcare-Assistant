@@ -89,6 +89,8 @@ describe("Voice Safety, Crisis Triage & Domain Guardrails", () => {
 
   it("includes spoken medical disclaimer content", () => {
     expect(SPOKEN_MEDICAL_DISCLAIMER).toContain("general health information");
+    expect(SPOKEN_MEDICAL_DISCLAIMER).toContain("112");
+    expect(SPOKEN_MEDICAL_DISCLAIMER).toContain("108");
     expect(SPOKEN_MEDICAL_DISCLAIMER).toContain("911");
     expect(SPOKEN_MEDICAL_DISCLAIMER).toContain("988");
   });

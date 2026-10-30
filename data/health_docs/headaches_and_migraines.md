@@ -25,7 +25,7 @@ Migraines are neurovascular events characterized by recurring, moderate-to-sever
 - Aggravation by routine physical exertion
 
 ### 3. Red-Flag Warning Signs (Requires Immediate Emergency Evaluation)
-Immediate emergency clinical care (911/emergency department) is required if any of the following "SNOOP" criteria occur:
+Immediate emergency clinical care (call 112 / 108 or visit emergency department) is required if any of the following "SNOOP" criteria occur:
 - "Thunderclap" headache: Instantaneous maximum intensity within seconds
 - Neurological deficits: Sudden numbness, facial drooping, slurred speech, or limb weakness
 - Systemic symptoms: High fever, stiff neck, confusion, or altered mental status

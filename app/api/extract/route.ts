@@ -47,9 +47,25 @@ export async function POST(req: NextRequest) {
     // Try Gemini JSON extraction
     try {
       recordGeminiUsage(150);
+      const requestedModel = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+      const VALID_GEMINI_MODELS = [
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "gemini-2.0-flash",
+        "gemini-pro",
+      ];
+
+      let targetModel = requestedModel;
+      if (!VALID_GEMINI_MODELS.includes(requestedModel)) {
+        console.error(
+          `❌ [Config Error] Invalid GEMINI_MODEL '${requestedModel}'. Valid models: ${VALID_GEMINI_MODELS.join(", ")}. Using default: gemini-1.5-flash`
+        );
+        targetModel = "gemini-1.5-flash";
+      }
+
       const client = getGeminiClient();
       const model = client.getGenerativeModel({
-        model: process.env.GEMINI_MODEL || "gemini-3.5-flash",
+        model: targetModel,
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.1,

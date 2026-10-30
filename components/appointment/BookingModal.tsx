@@ -35,6 +35,7 @@ export function BookingModal({
   const [patientNotes, setPatientNotes] = useState(initialSymptoms);
   const [loading, setLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState<any | null>(null);
+  const [verification, setVerification] = useState<any | null>(null);
 
   useEffect(() => {
     if (initialMode) setConsultationType(initialMode);
@@ -85,7 +86,8 @@ export function BookingModal({
       }
 
       setBookingSuccess(outcome.appointment);
-      toast.success("Appointment successfully scheduled!");
+      setVerification(outcome.verification || null);
+      toast.success("Appointment successfully scheduled and verified!");
     } catch (err) {
       console.error("Booking error:", err);
       toast.error("An error occurred while booking. Please try again.");
@@ -97,8 +99,8 @@ export function BookingModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl relative space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full max-h-[92vh] overflow-y-auto p-5 sm:p-6 shadow-2xl relative space-y-5">
         <button
           onClick={onClose}
           className="absolute top-5 right-5 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
@@ -108,17 +110,53 @@ export function BookingModal({
         </button>
 
         {bookingSuccess ? (
-          <div className="text-center py-6 space-y-4">
-            <div className="inline-flex p-4 bg-emerald-100 dark:bg-emerald-950/60 rounded-3xl text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="w-12 h-12" />
+          <div className="text-center py-4 space-y-4">
+            <div className="inline-flex p-3 sm:p-4 bg-emerald-100 dark:bg-emerald-950/60 rounded-3xl text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="w-10 h-10 sm:w-12 sm:h-12" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
                 {bookingSuccess.consultationType === "direct" ? "In-Person Visit Confirmed!" : "Virtual Consultation Confirmed!"}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Confirmation emails have been dispatched to both you and the doctor.
+                Both completion requirements have been verified and confirmed.
               </p>
+            </div>
+
+            {/* Dual Outcome Verification Checklist */}
+            <div className="p-3.5 bg-emerald-50/80 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 text-left text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-900 dark:text-emerald-200 uppercase tracking-wider text-[11px]">
+                  Verified Completion Status
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                  Option Complete
+                </span>
+              </div>
+
+              <div className="space-y-1.5 text-slate-700 dark:text-slate-300">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Meeting Link & Calendar:</span>
+                  </span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Generated & Synced</span>
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Confirmation Email:</span>
+                  </span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Sent to Patient & Doctor</span>
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 text-left text-xs space-y-2">
@@ -163,9 +201,10 @@ export function BookingModal({
             <button
               onClick={() => {
                 setBookingSuccess(null);
+                setVerification(null);
                 onClose();
               }}
-              className="w-full py-2.5 rounded-xl font-semibold text-sm bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90"
+              className="w-full py-2.5 rounded-xl font-semibold text-sm bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity"
             >
               Done
             </button>

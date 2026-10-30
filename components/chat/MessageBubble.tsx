@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { User, Bot, Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -33,6 +33,40 @@ function formatMessageTime(isoString?: string): string | null {
   }
 }
 
+function renderMessageContent(content: string) {
+  // Matches markdown links: [text](url)
+  const markdownLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = markdownLinkRegex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(content.substring(lastIndex, match.index));
+    }
+    const linkText = match[1];
+    const linkUrl = match[2];
+    parts.push(
+      <a
+        key={match.index}
+        href={linkUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 underline underline-offset-2 break-all"
+      >
+        {linkText}
+      </a>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : content;
+}
+
 export function MessageBubble({
   id,
   role,
@@ -44,14 +78,22 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<1 | -1 | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isUser = role === "user";
 
   const cleanText = (text: string) =>
-    text.replace(/\s*\[\d+\](?:\s*,\s*\[\d+\])*/g, "");
+    text
+      .replace(/\s*\[\d+\](?:\s*,\s*\[\d+\])*/g, "")
+      .replace(/\n*(?:\*{1,2})?(?:Medical\s+)?Disclaimer:?(?:\*{1,2})?\s*(?:This\s+(?:AI\s+)?(?:assistant|information|response)|I\s+am\s+an\s+AI|Always\s+consult\s+a\s+doctor|In\s+an\s+emergency\s+call)[^\n]*/gi, "")
+      .trim();
 
   const displayContent = cleanText(content);
-  const timeStr = formatMessageTime(createdAt);
+  const timeStr = mounted ? formatMessageTime(createdAt) : null;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(displayContent);
@@ -127,12 +169,12 @@ export function MessageBubble({
         )}
 
         {displayContent.trim() && (
-          <div className="whitespace-pre-wrap break-words">{displayContent}</div>
+          <div className="whitespace-pre-wrap break-words">{renderMessageContent(displayContent)}</div>
         )}
 
         {/* User timestamp */}
         {isUser && timeStr && (
-          <div className="text-[10px] text-emerald-100/80 text-right select-none pt-0.5">
+          <div suppressHydrationWarning className="text-[10px] text-emerald-100/80 text-right select-none pt-0.5">
             {timeStr}
           </div>
         )}
@@ -181,7 +223,7 @@ export function MessageBubble({
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
               {timeStr && (
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 select-none">
+                <span suppressHydrationWarning className="text-[10px] text-slate-400 dark:text-slate-500 select-none">
                   {timeStr}
                 </span>
               )}

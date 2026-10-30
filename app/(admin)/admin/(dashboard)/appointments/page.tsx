@@ -38,14 +38,48 @@ export default function AdminAppointmentsPage() {
     try {
       setLoading(true);
       const supabase = createClient();
+      let appts: any[] = [];
+
       const { data, error } = await supabase
         .from("appointments")
         .select("*, profiles!appointments_user_id_fkey(full_name, email)")
         .order("start_time", { ascending: false });
 
       if (!error && data) {
-        setAppointments(data as any);
+        appts = data;
+      } else {
+        const { data: rawData, error: rawErr } = await supabase
+          .from("appointments")
+          .select("*")
+          .order("start_time", { ascending: false });
+
+        if (!rawErr && rawData) {
+          const userIds = Array.from(new Set(rawData.map((a: any) => a.user_id).filter(Boolean)));
+          const profileMap: Record<string, { full_name?: string; email?: string }> = {};
+
+          if (userIds.length > 0) {
+            try {
+              const { data: profs } = await supabase
+                .from("profiles")
+                .select("id, full_name, email")
+                .in("id", userIds);
+
+              if (profs) {
+                for (const p of profs) {
+                  profileMap[p.id] = { full_name: p.full_name, email: p.email };
+                }
+              }
+            } catch {}
+          }
+
+          appts = rawData.map((a: any) => ({
+            ...a,
+            profiles: profileMap[a.user_id] || null,
+          }));
+        }
       }
+
+      setAppointments(appts);
     } catch (e) {
       console.warn("Failed to load appointments:", e);
     } finally {

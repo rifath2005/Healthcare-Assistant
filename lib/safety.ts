@@ -71,10 +71,17 @@ export const CRISIS_RESOURCES = {
     "If you or someone you know is struggling or in distress, please know that you are not alone. Professional help is available 24/7.",
   contacts: [
     {
+      name: "Emergency Medical Services (112 / 108)",
+      detail: "If you are experiencing a life-threatening medical emergency, immediately call 112 (National Emergency) or 108 (Medical Ambulance).",
+      actionUrl: "tel:112",
+      actionLabel: "Call 112 / 108",
+      type: "emergency",
+    },
+    {
       name: "988 Suicide & Crisis Lifeline",
-      detail: "Call or text 988 (Available 24/7 across the US and Canada)",
-      actionUrl: "tel:988",
-      actionLabel: "Call 988",
+      detail: "Call 112 / 108 or text 988 (Available 24/7 confidential crisis support)",
+      actionUrl: "tel:112",
+      actionLabel: "Call 112 / 988",
       type: "phone",
     },
     {
@@ -83,13 +90,6 @@ export const CRISIS_RESOURCES = {
       actionUrl: "sms:741741?body=HOME",
       actionLabel: "Text 741741",
       type: "sms",
-    },
-    {
-      name: "Emergency Medical Services",
-      detail: "If you are experiencing a life-threatening medical emergency, call 911 immediately.",
-      actionUrl: "tel:911",
-      actionLabel: "Call 911 / 112",
-      type: "emergency",
     },
   ],
 };

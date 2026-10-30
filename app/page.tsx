@@ -3,11 +3,11 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DisclaimerBanner } from "@/components/ui/DisclaimerBanner";
 import { ConsentModal } from "@/components/ui/ConsentModal";
 import { ChatContainer } from "@/components/chat/ChatContainer";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { useWellnessTools } from "@/components/wellness/useWellnessTools";
 import { createClient } from "@/lib/supabase/client";
 import { clearGuestMessages } from "@/lib/supabase/syncGuestSession";
 import {
@@ -23,6 +23,7 @@ import { toast } from "sonner";
 
 export default function HomePage() {
   const router = useRouter();
+  const wellness = useWellnessTools();
   const [user, setUser] = useState<any | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -106,9 +107,6 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-white dark:bg-slate-950">
-      {/* Non-Diagnostic Disclaimer Banner */}
-      <DisclaimerBanner />
-
       {/* Main Top Header */}
       <header className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
         <div className="flex items-center gap-3">
@@ -190,15 +188,15 @@ export default function HomePage() {
 
       {/* Main Body: Sidebar + Chat Stream */}
       <div className="flex flex-1 overflow-hidden">
-        {user && (
-          <ChatSidebar
-            currentConversationId={activeConversationId}
-            onSelectConversation={setActiveConversationId}
-            onNewConversation={handleNewConversation}
-            isOpen={isSidebarOpen}
-            onCloseMobile={handleCloseMobile}
-          />
-        )}
+        <ChatSidebar
+          currentConversationId={activeConversationId}
+          onSelectConversation={setActiveConversationId}
+          onNewConversation={handleNewConversation}
+          isOpen={isSidebarOpen}
+          onCloseMobile={handleCloseMobile}
+          onOpenBreathing={wellness.openBreathing}
+          onOpenGrounding={wellness.openGrounding}
+        />
 
         <main className="flex-1 flex flex-col h-full overflow-hidden">
           <ChatContainer
@@ -207,6 +205,10 @@ export default function HomePage() {
             onConversationCreated={(newId) => setActiveConversationId(newId)}
             onNewConversation={handleNewConversation}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+            showBreathing={wellness.showBreathing}
+            showGrounding={wellness.showGrounding}
+            onCloseBreathing={wellness.closeBreathing}
+            onCloseGrounding={wellness.closeGrounding}
           />
         </main>
       </div>

@@ -27,14 +27,26 @@ export function CrisisBanner({ severity, trigger }: CrisisBannerProps) {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-4">
-            {/* 988 Lifeline */}
+            {/* Emergency Services 112 / 108 */}
             <a
-              href="tel:988"
+              href="tel:112"
+              className="flex items-center justify-between p-3.5 bg-red-950 text-white rounded-2xl font-bold text-sm shadow-md hover:bg-black transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck className="w-5 h-5 text-red-400" />
+                <span>Call 112 / 108 EMS</span>
+              </div>
+              <span className="text-xs bg-red-800 text-red-100 px-2 py-0.5 rounded-full">Emergency</span>
+            </a>
+
+            {/* 988 Crisis Lifeline */}
+            <a
+              href="tel:112"
               className="flex items-center justify-between p-3.5 bg-white text-red-700 rounded-2xl font-bold text-sm shadow-md hover:bg-red-50 transition-colors"
             >
               <div className="flex items-center gap-2.5">
                 <PhoneCall className="w-5 h-5 text-red-600" />
-                <span>Call/Text 988 Lifeline</span>
+                <span>Call/Text 988 Lifeline (112)</span>
               </div>
               <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">24/7</span>
             </a>
@@ -49,18 +61,6 @@ export function CrisisBanner({ severity, trigger }: CrisisBannerProps) {
                 <span>Text HOME to 741741</span>
               </div>
               <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">Free</span>
-            </a>
-
-            {/* Emergency Services */}
-            <a
-              href="tel:911"
-              className="flex items-center justify-between p-3.5 bg-red-950 text-white rounded-2xl font-bold text-sm shadow-md hover:bg-black transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                <ShieldCheck className="w-5 h-5 text-red-400" />
-                <span>Call 911 / 112 EMS</span>
-              </div>
-              <span className="text-xs bg-red-800 text-red-100 px-2 py-0.5 rounded-full">Emergency</span>
             </a>
           </div>
 

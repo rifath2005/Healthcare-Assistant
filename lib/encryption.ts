@@ -6,9 +6,17 @@ const IV_LENGTH = 12; // 96 bits for GCM
 const TAG_LENGTH = 16; // 128-bit authentication tag
 
 function getKeyBuffer(): Buffer {
-  const rawKey = env.CLINICAL_ENCRYPTION_KEY || "0123456789abcdef0123456789abcdef";
+  const rawKey = env.CLINICAL_ENCRYPTION_KEY;
+  if (!rawKey || rawKey === "0123456789abcdef0123456789abcdef") {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "CRITICAL SECURITY FAILURE: CLINICAL_ENCRYPTION_KEY is required and cannot use insecure default in production."
+      );
+    }
+  }
+  const keyToUse = rawKey || "0123456789abcdef0123456789abcdef";
   // Create deterministic 32-byte hash of the key
-  return crypto.createHash("sha256").update(rawKey).digest();
+  return crypto.createHash("sha256").update(keyToUse).digest();
 }
 
 /**

@@ -57,19 +57,50 @@ export default function DoctorAppointmentsPage() {
   const [cancellingAppointment, setCancellingAppointment] = useState<DoctorAppointment | null>(null);
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState<boolean>(true);
 
-  // Initialize doctor session
+  // Initialize doctor session from verified server session cookie
   useEffect(() => {
-    const sessionStr = typeof window !== "undefined" ? localStorage.getItem("doctor_session") : null;
-    if (sessionStr) {
+    let isMounted = true;
+
+    async function initDoctorSession() {
       try {
-        const doc = JSON.parse(sessionStr);
-        setCurrentDoctor(doc);
-      } catch {
+        const res = await fetch("/api/doctor/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data.doctor) {
+            setCurrentDoctor(data.doctor);
+            return;
+          }
+        }
+      } catch (err) {
+        // Continue to fallback check
+      }
+
+      // Development / test fallback for local testing
+      if (process.env.NODE_ENV !== "production") {
+        const sessionStr = typeof window !== "undefined" ? localStorage.getItem("doctor_session") : null;
+        if (sessionStr) {
+          try {
+            const doc = JSON.parse(sessionStr);
+            if (isMounted) {
+              setCurrentDoctor(doc);
+              return;
+            }
+          } catch {
+            // invalid JSON
+          }
+        }
+      }
+
+      if (isMounted) {
         router.replace("/doctor/login");
       }
-    } else {
-      router.replace("/doctor/login");
     }
+
+    initDoctorSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   const loadDoctorAppointments = useCallback(async (docId?: string, silent = false) => {
@@ -107,8 +138,14 @@ export default function DoctorAppointmentsPage() {
     return () => clearInterval(pollInterval);
   }, [currentDoctor?.id, loadDoctorAppointments]);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await fetch("/api/doctor/logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
     localStorage.removeItem("doctor_session");
+    document.cookie = "doctor_session=; path=/; max-age=0";
     document.cookie = "doctor_id=; path=/; max-age=0";
     toast.success("Signed out of Doctor Portal");
     router.push("/doctor/login");

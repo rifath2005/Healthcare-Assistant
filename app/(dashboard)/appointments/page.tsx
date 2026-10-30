@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   ExternalLink,
   CalendarDays,
+  RefreshCw,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatAppointmentTime } from "@/lib/timezone";
@@ -30,6 +31,7 @@ interface Appointment {
   status: string;
   meet_link?: string;
   patient_notes?: string;
+  clinicRoom?: string;
 }
 
 export default function UserAppointmentsPage() {
@@ -42,6 +44,26 @@ export default function UserAppointmentsPage() {
   const loadAppointments = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
+
+      // Primary strategy: Fetch from dedicated /api/appointments route
+      try {
+        const res = await fetch("/api/appointments", {
+          cache: "no-store",
+          headers: { Pragma: "no-cache" },
+        });
+
+        if (res.ok) {
+          const outcome = await res.json();
+          if (outcome.appointments && Array.isArray(outcome.appointments)) {
+            setAppointments(outcome.appointments);
+            return;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("Direct API appointments fetch notice:", apiErr);
+      }
+
+      // Secondary fallback: Direct Supabase client query
       const supabase = createClient();
       const {
         data: { user },
@@ -79,7 +101,7 @@ export default function UserAppointmentsPage() {
     loadAppointments();
     const pollInterval = setInterval(() => {
       loadAppointments(true);
-    }, 15000);
+    }, 10000);
     return () => clearInterval(pollInterval);
   }, []);
 
@@ -97,6 +119,7 @@ export default function UserAppointmentsPage() {
         setAppointments((prev) =>
           prev.map((a) => (a.id === id ? { ...a, status: "cancelled" } : a))
         );
+        loadAppointments(true);
       } else {
         toast.error("Failed to cancel appointment");
       }
@@ -127,6 +150,17 @@ export default function UserAppointmentsPage() {
               </p>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => loadAppointments()}
+            disabled={loading}
+            className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-emerald-600 hover:border-emerald-500/30 transition-all flex items-center gap-2 text-xs font-semibold shadow-xs disabled:opacity-50"
+            title="Refresh appointments"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-emerald-600" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
         </div>
 
         {loading ? (
@@ -225,7 +259,7 @@ export default function UserAppointmentsPage() {
                   </div>
 
                   {!isCancelled && (
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                       {appt.meet_link && (
                         <a
                           href={appt.meet_link}

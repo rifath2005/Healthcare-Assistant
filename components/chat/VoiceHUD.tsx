@@ -16,11 +16,24 @@ import {
   CheckCircle2,
   Sparkles,
   MessageSquare,
+  Mail,
 } from "lucide-react";
 import { type PendingVoiceAction } from "@/lib/voiceActions";
 import { cn } from "@/lib/utils";
 
 export type VoiceState = "idle" | "listening" | "thinking" | "speaking" | "awaiting_confirmation";
+
+export interface TaskVerificationStatus {
+  emailSent: boolean;
+  calendarUpdated: boolean;
+  meetingLinkGenerated: boolean;
+  isComplete: boolean;
+  stage?: "idle" | "updating_calendar" | "sending_email" | "verified_complete" | "failed";
+  message?: string;
+  optionId?: string;
+  label?: string;
+  statusMessage?: string;
+}
 
 interface VoiceHUDProps {
   state: VoiceState;
@@ -33,6 +46,7 @@ interface VoiceHUDProps {
   onInterrupt: () => void;
   onExitVoiceMode: () => void;
   actionExecuting?: boolean;
+  verificationStatus?: TaskVerificationStatus | null;
   ttsProvider?: "vexyl" | "web-speech";
   vexylLang?: string;
   onChangeVexylLang?: (lang: string) => void;
@@ -54,6 +68,7 @@ export function VoiceHUD({
   onInterrupt,
   onExitVoiceMode,
   actionExecuting,
+  verificationStatus,
   ttsProvider = "vexyl",
   vexylLang = "en-IN",
   onChangeVexylLang,
@@ -281,22 +296,7 @@ export function VoiceHUD({
 
           {/* Current State Status Pill */}
           <div>
-            {isMuted ? (
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 shadow-xs">
-                <MicOff className="w-3.5 h-3.5 text-amber-600" />
-                <span>Microphone Muted (Tap Unmute to speak)</span>
-              </span>
-            ) : isListening && isHearingSound ? (
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs animate-pulse">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping" />
-                <span>Hearing your voice...</span>
-              </span>
-            ) : isListening && !isHearingSound ? (
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span>Listening for your voice (speak anytime)...</span>
-              </span>
-            ) : isThinking ? (
+            {isThinking ? (
               <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 shadow-xs">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
                 <span>Consulting clinical guidelines...</span>
@@ -311,6 +311,21 @@ export function VoiceHUD({
                 <AlertCircle className="w-3.5 h-3.5 text-purple-600" />
                 <span>Awaiting spoken confirmation (&ldquo;Yes&rdquo; / &ldquo;No&rdquo;)</span>
               </span>
+            ) : isMuted ? (
+              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 shadow-xs">
+                <MicOff className="w-3.5 h-3.5 text-amber-600" />
+                <span>Microphone Muted (Tap Unmute to speak)</span>
+              </span>
+            ) : isListening && isHearingSound ? (
+              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs animate-pulse">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping" />
+                <span>Hearing your voice...</span>
+              </span>
+            ) : isListening && !isHearingSound ? (
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Listening for your voice (speak anytime)...</span>
+              </span>
             ) : null}
           </div>
         </div>
@@ -321,16 +336,16 @@ export function VoiceHUD({
           <div className="flex items-start gap-2">
             <span className="text-slate-400 dark:text-slate-500 font-semibold shrink-0 select-none">You:</span>
             <p className="text-slate-800 dark:text-slate-200 break-words leading-relaxed font-medium">
-              {isMuted ? (
-                <span className="text-amber-600 dark:text-amber-400 italic font-normal">
-                  Microphone is muted. Tap Unmute to speak...
-                </span>
+              {finalTranscript ? (
+                <span>{finalTranscript}</span>
               ) : interimTranscript ? (
                 <span className="text-emerald-700 dark:text-emerald-400 italic">
                   {interimTranscript} ...
                 </span>
-              ) : finalTranscript ? (
-                <span>{finalTranscript}</span>
+              ) : isMuted ? (
+                <span className="text-amber-600 dark:text-amber-400 italic font-normal">
+                  Microphone is muted. Tap Unmute to speak...
+                </span>
               ) : (
                 <span className="text-slate-400 dark:text-slate-500 italic font-normal">
                   Speak naturally, e.g., &ldquo;Book with Dr. Lin next Tuesday&rdquo; or describe symptoms...
@@ -384,6 +399,70 @@ export function VoiceHUD({
                 {pendingAction.doctor.specialty}
               </div>
             </div>
+
+            {/* Real-time Verified Task Progress Breakdown */}
+            {(actionExecuting || verificationStatus) && (
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold">
+                  <span className="text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Completion Verification:</span>
+                  </span>
+                  <span
+                    className={cn(
+                      "px-2 py-0.5 rounded-full text-[10px] font-bold",
+                      verificationStatus?.isComplete
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300"
+                        : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 animate-pulse"
+                    )}
+                  >
+                    {verificationStatus?.isComplete
+                      ? "Option Complete (Both Confirmed)"
+                      : "Verifying (Both Required)..."}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 text-[11px]">
+                  {/* Outcome 1: Calendar & Meeting Link */}
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Meeting Link & Calendar:</span>
+                    </span>
+                    {verificationStatus?.calendarUpdated ? (
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Generated & Synced</span>
+                      </span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Updating Calendar...</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Outcome 2: Confirmation Email */}
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                      <Mail className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Confirmation Email:</span>
+                    </span>
+                    {verificationStatus?.emailSent ? (
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Dispatched to Patient & Doctor</span>
+                      </span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Sending Confirmation...</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center justify-between pt-1">
               <p className="text-[11px] text-emerald-800 dark:text-emerald-300 italic">

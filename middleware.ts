@@ -48,7 +48,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/" ||
     pathname === "/terms" ||
     pathname === "/privacy" ||
-    pathname.startsWith("/doctor") ||
+    pathname === "/doctor/login" ||
     pathname === "/admin/login" ||
     pathname.startsWith("/auth/callback");
 
@@ -63,7 +63,31 @@ export async function middleware(request: NextRequest) {
     return redirectResponse;
   }
 
-  // 1. If authenticated and attempting to view login/signup -> redirect to home (conversation page)
+  // 1. If accessing doctor portal, check doctor session cookie
+  const isDoctorRoute = pathname.startsWith("/doctor");
+  const isDoctorLogin = pathname === "/doctor/login";
+  const hasDoctorSession =
+    request.cookies.has("doctor_session") ||
+    request.cookies.has("doctor_id");
+
+  if (isDoctorRoute) {
+    if (isDoctorLogin) {
+      if (hasDoctorSession) {
+        url.pathname = "/doctor/appointments";
+        return createRedirectResponse(url);
+      }
+      return response;
+    }
+
+    if (!hasDoctorSession && !user) {
+      url.pathname = "/doctor/login";
+      url.searchParams.set("redirect", pathname);
+      return createRedirectResponse(url);
+    }
+    return response;
+  }
+
+  // 2. If authenticated and attempting to view login/signup -> redirect to home (conversation page)
   if (user && isAuthRoute) {
     url.pathname = "/";
     return createRedirectResponse(url);

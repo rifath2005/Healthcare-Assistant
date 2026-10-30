@@ -14,6 +14,6 @@ A heart attack occurs when the flow of blood that brings oxygen to a part of the
 
 ### 2. Immediate Clinical Protocol
 If you suspect someone is suffering from a heart attack:
-1. Call 911 or emergency medical services immediately.
+1. Call 112 or 108 (or local emergency medical services) immediately.
 2. Do not attempt to drive yourself to the hospital.
 3. If advised by the emergency dispatcher, chew and swallow an adult non-enteric coated aspirin (325mg) while awaiting emergency responders, provided there is no aspirin allergy or active gastrointestinal bleed.

@@ -73,7 +73,7 @@ export function ConsentModal() {
             <strong>1. Not a Medical Device:</strong> The Smart Healthcare Assistant is an AI-powered conversational platform intended solely for informational, wellness, and preliminary triage education. It is <strong>NOT</strong> an FDA-cleared diagnostic device and does not establish a formal doctor-patient relationship.
           </p>
           <p>
-            <strong>2. Emergency Triage:</strong> If you are experiencing symptoms of a heart attack (severe crushing chest pain), stroke (facial drooping, sudden slurred speech), severe bleeding, or acute suicidal distress, DO NOT rely on this application. Immediately call <strong>911</strong> or text/call <strong>988</strong>.
+            <strong>2. Emergency Triage:</strong> If you are experiencing symptoms of a heart attack (severe crushing chest pain), stroke (facial drooping, sudden slurred speech), severe bleeding, or acute suicidal distress, DO NOT rely on this application. Immediately call <strong>112</strong> or <strong>108</strong> (emergency services / 911 / 988).
           </p>
           <p>
             <strong>3. Privacy & Data Minimization:</strong> Anonymous guest conversations are stored temporarily in your local browser. If you register or authenticate, clinical dialogues are encrypted and isolated via PostgreSQL Row-Level Security.

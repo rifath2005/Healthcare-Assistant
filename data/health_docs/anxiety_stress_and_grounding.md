@@ -36,5 +36,5 @@ This cognitive orientation technique counters dissociative panic by anchoring at
 
 ### 3. Crisis Resources
 If stress or emotional pain becomes unmanageable:
-- Call or text **988** for the Suicide & Crisis Lifeline (free, confidential, 24/7).
+- Call **112** (Emergency Helpline) or call/text **988** for the Suicide & Crisis Lifeline (free, confidential, 24/7).
 - Text **HOME** to **741741** to connect with a trained Crisis Counselor.

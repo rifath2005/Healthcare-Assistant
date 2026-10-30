@@ -48,14 +48,11 @@ describe("Chat Interface & UI Component States", () => {
       ).toBeInTheDocument();
     });
 
-    it("displays the prominent medical disclaimer banner", () => {
+    it("ensures top of chat disclaimer banner is removed for clean UI", () => {
       render(<ChatContainer />);
 
-      const disclaimer = screen.getByRole("note", { name: /medical disclaimer/i });
-      expect(disclaimer).toBeInTheDocument();
-      expect(disclaimer).toHaveTextContent(/not a substitute for professional clinical judgment/i);
-      expect(disclaimer).toHaveTextContent(/911/);
-      expect(disclaimer).toHaveTextContent(/988/);
+      const disclaimer = screen.queryByRole("note", { name: /medical disclaimer/i });
+      expect(disclaimer).not.toBeInTheDocument();
     });
 
     it("renders suggested starter questions as interactive chips", () => {

@@ -39,7 +39,7 @@ export default function TermsOfServicePage() {
           <section className="space-y-2">
             <h2 className="text-base font-bold text-slate-900 dark:text-white">1. Emergency Situations</h2>
             <p>
-              If you or someone in your care is experiencing severe chest pain, sudden numbness or paralysis, uncontrollable bleeding, anaphylaxis, or thoughts of self-harm or suicide, DO NOT rely on this application. Immediately call <strong>911</strong> or text/call <strong>988</strong>.
+              If you or someone in your care is experiencing severe chest pain, sudden numbness or paralysis, uncontrollable bleeding, anaphylaxis, or thoughts of self-harm or suicide, DO NOT rely on this application. Immediately call <strong>112</strong> or <strong>108</strong> (or 911 / 988).
             </p>
           </section>
 

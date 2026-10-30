@@ -4,6 +4,45 @@ import { createAdminClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+function createDoctorLoginResponse(doctor: DoctorProfile) {
+  const res = NextResponse.json({
+    success: true,
+    doctor,
+  });
+
+  const sessionPayload = {
+    id: doctor.id,
+    name: doctor.name,
+    specialty: doctor.specialty,
+    email: doctor.email,
+    clinicalCode: doctor.clinicalCode,
+  };
+
+  // Secure HTTP-only session cookie
+  res.cookies.set({
+    name: "doctor_session",
+    value: JSON.stringify(sessionPayload),
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 86400, // 24 hours
+  });
+
+  // Client-accessible identifier cookie
+  res.cookies.set({
+    name: "doctor_id",
+    value: doctor.id,
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 86400,
+  });
+
+  return res;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { email, password } = await req.json();
@@ -18,10 +57,7 @@ export async function POST(req: NextRequest) {
     // 1. Check local CLINIC_DOCTORS roster first
     const staticDoctor = validateDoctorCredentials(email, password);
     if (staticDoctor) {
-      return NextResponse.json({
-        success: true,
-        doctor: staticDoctor,
-      });
+      return createDoctorLoginResponse(staticDoctor);
     }
 
     // 2. Check Supabase database doctors table (for dynamically added doctors via /admin/doctors)
@@ -69,10 +105,7 @@ export async function POST(req: NextRequest) {
             clinicalCode,
           };
 
-          return NextResponse.json({
-            success: true,
-            doctor: dynamicDoctorProfile,
-          });
+          return createDoctorLoginResponse(dynamicDoctorProfile);
         }
       }
     }

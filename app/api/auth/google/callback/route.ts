@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { env } from "@/lib/env";
-import fs from "fs";
-import path from "path";
+import { saveGoogleRefreshToken } from "@/lib/integrations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,21 +35,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Persist to .env.local
-    const envPath = path.resolve(process.cwd(), ".env.local");
-    let envContent = "";
-    if (fs.existsSync(envPath)) {
-      envContent = fs.readFileSync(envPath, "utf-8");
-    }
-
-    if (envContent.includes("GOOGLE_REFRESH_TOKEN=")) {
-      envContent = envContent.replace(/GOOGLE_REFRESH_TOKEN=.*/g, `GOOGLE_REFRESH_TOKEN=${tokens.refresh_token}`);
-    } else {
-      envContent += `\nGOOGLE_REFRESH_TOKEN=${tokens.refresh_token}\n`;
-    }
-
-    fs.writeFileSync(envPath, envContent, "utf-8");
-    process.env.GOOGLE_REFRESH_TOKEN = tokens.refresh_token;
+    // Persist refresh token to Supabase and runtime environment (serverless compatible)
+    await saveGoogleRefreshToken(tokens.refresh_token, tokens.access_token || undefined);
 
     // Test creating a live verified Google Meet link
     oAuth2Client.setCredentials(tokens);

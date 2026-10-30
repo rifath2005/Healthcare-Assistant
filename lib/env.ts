@@ -30,8 +30,14 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().optional().default("onboarding@resend.dev"),
   
   // Security & Cron
-  CRON_SECRET: z.string().optional().default("default_cron_secret_32_characters_long"),
-  CLINICAL_ENCRYPTION_KEY: z.string().min(16).default("0123456789abcdef0123456789abcdef"),
+  CRON_SECRET:
+    process.env.NODE_ENV === "production"
+      ? z.string({ required_error: "CRON_SECRET is required in production" }).min(16, "CRON_SECRET must be at least 16 characters in production")
+      : z.string().optional().default("default_cron_secret_32_characters_long"),
+  CLINICAL_ENCRYPTION_KEY:
+    process.env.NODE_ENV === "production"
+      ? z.string({ required_error: "CLINICAL_ENCRYPTION_KEY is required in production" }).min(32, "CLINICAL_ENCRYPTION_KEY must be at least 32 characters in production")
+      : z.string().min(16).default("0123456789abcdef0123456789abcdef"),
   
   // Turnstile
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional().default(""),
@@ -80,7 +86,13 @@ try {
   if (error instanceof z.ZodError) {
     console.error("❌ Environment validation error:", JSON.stringify(error.format(), null, 2));
   }
-  // In non-strict mode / tests, fall back to default parsed object
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      `CRITICAL: Missing or invalid required environment variables in production:\n` +
+      `${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  // In development and test modes, fall back to safe local defaults
   parsedEnv = envSchema.parse({});
 }
 
