@@ -121,6 +121,7 @@ export function ChatContainer({
   const recognitionRef = useRef<any>(null);
   const speechSilenceTimerRef = useRef<any>(null);
   const latestInterimRef = useRef<string>("");
+  const accumulatedTranscriptRef = useRef<string>("");
   const dispatchVoiceTurnRef = useRef<(text: string) => void>(() => {});
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -329,6 +330,13 @@ export function ChatContainer({
       return;
     }
 
+    // Only reset speech buffers if starting a fresh turn (not reconnecting while silence timer is running)
+    if (!speechSilenceTimerRef.current) {
+      accumulatedTranscriptRef.current = "";
+      latestInterimRef.current = "";
+      setInterimTranscript("");
+    }
+
     const SpeechRecognition =
       typeof window !== "undefined" &&
       ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
@@ -359,62 +367,70 @@ export function ChatContainer({
       };
 
       recognition.onresult = (event: any) => {
-        let interim = "";
-        let final = "";
+        let sessionFinal = "";
+        let sessionInterim = "";
 
-        for (let i = event.resultIndex; i < event.results.length; i++) {
+        for (let i = 0; i < event.results.length; i++) {
           const item = event.results[i];
           if (item.isFinal) {
-            final += item[0].transcript;
+            sessionFinal += item[0].transcript + " ";
           } else {
-            interim += item[0].transcript;
+            sessionInterim += item[0].transcript;
           }
         }
 
-        if (interim) {
-          latestInterimRef.current = interim;
-          setInterimTranscript(interim);
+        sessionFinal = sessionFinal.trim();
+        sessionInterim = sessionInterim.trim();
 
-          // Adaptive silence timer (VAD): If the user pauses speaking for 750ms,
-          // auto-commit their speech immediately without waiting 3-4s for browser isFinal!
+        // Accumulate prior session segments + current session final + interim
+        const currentSpoken = [accumulatedTranscriptRef.current, sessionFinal, sessionInterim]
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (currentSpoken) {
+          latestInterimRef.current = currentSpoken;
+          setInterimTranscript(currentSpoken);
+
+          // Reset the 3-second silence detector on every newly detected word
           if (speechSilenceTimerRef.current) {
             clearTimeout(speechSilenceTimerRef.current);
           }
+
+          // User requirement: Wait until NO words have been received for 3 full seconds before replying!
           speechSilenceTimerRef.current = setTimeout(() => {
-            const spokenText = latestInterimRef.current.trim();
+            const spokenText = (latestInterimRef.current || accumulatedTranscriptRef.current).trim();
+            if (speechSilenceTimerRef.current) {
+              clearTimeout(speechSilenceTimerRef.current);
+              speechSilenceTimerRef.current = null;
+            }
+
             if (
               spokenText.length >= 2 &&
               isVoiceModeRef.current &&
               (voiceStateRef.current === "listening" || voiceStateRef.current === "awaiting_confirmation")
             ) {
+              accumulatedTranscriptRef.current = "";
               latestInterimRef.current = "";
               setFinalTranscript(spokenText);
               setInterimTranscript("");
               isListeningActiveRef.current = false;
+              updateVoiceState("thinking");
+
               try {
                 recognition.stop();
               } catch {}
+
               dispatchVoiceTurnRef.current(spokenText);
+            } else {
+              // Spurious noise or text shorter than 2 chars; reset buffer and keep listening
+              accumulatedTranscriptRef.current = "";
+              latestInterimRef.current = "";
+              setInterimTranscript("");
             }
-          }, 750);
-        }
-
-        if (final.trim()) {
-          if (speechSilenceTimerRef.current) {
-            clearTimeout(speechSilenceTimerRef.current);
-            speechSilenceTimerRef.current = null;
-          }
-          latestInterimRef.current = "";
-          const cleanFinal = final.trim();
-          setFinalTranscript(cleanFinal);
-          setInterimTranscript("");
-          isListeningActiveRef.current = false;
-
-          try {
-            recognition.stop();
-          } catch {}
-
-          dispatchVoiceTurnRef.current(cleanFinal);
+          }, 3000);
         }
       };
 
@@ -441,6 +457,12 @@ export function ChatContainer({
 
       recognition.onend = () => {
         isListeningActiveRef.current = false;
+
+        // If the 3-second silence timer is currently running, save text spoken so far
+        if (speechSilenceTimerRef.current && latestInterimRef.current) {
+          accumulatedTranscriptRef.current = latestInterimRef.current;
+        }
+
         // Restart listening if still in voice mode and not currently busy
         if (
           isVoiceModeRef.current &&
@@ -460,7 +482,7 @@ export function ChatContainer({
             ) {
               startListeningLoop();
             }
-          }, 300);
+          }, 150);
         }
       };
 
@@ -569,7 +591,9 @@ export function ChatContainer({
       clearTimeout(speechSilenceTimerRef.current);
       speechSilenceTimerRef.current = null;
     }
+    accumulatedTranscriptRef.current = "";
     latestInterimRef.current = "";
+    setFinalTranscript("");
 
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
@@ -597,7 +621,9 @@ export function ChatContainer({
       clearTimeout(speechSilenceTimerRef.current);
       speechSilenceTimerRef.current = null;
     }
+    accumulatedTranscriptRef.current = "";
     latestInterimRef.current = "";
+    setInterimTranscript("");
     voiceTtsRef.current.stop();
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -740,6 +766,15 @@ export function ChatContainer({
   };
 
   const handleClearChat = () => {
+    if (speechSilenceTimerRef.current) {
+      clearTimeout(speechSilenceTimerRef.current);
+      speechSilenceTimerRef.current = null;
+    }
+    accumulatedTranscriptRef.current = "";
+    latestInterimRef.current = "";
+    setInterimTranscript("");
+    setFinalTranscript("");
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -850,6 +885,14 @@ export function ChatContainer({
     updateLoading(true);
 
     if (isVoiceModeRef.current) {
+      if (speechSilenceTimerRef.current) {
+        clearTimeout(speechSilenceTimerRef.current);
+        speechSilenceTimerRef.current = null;
+      }
+      accumulatedTranscriptRef.current = "";
+      latestInterimRef.current = "";
+      setInterimTranscript("");
+
       if (!options.isFromVoiceTurn) {
         updateVoiceState("thinking");
       }

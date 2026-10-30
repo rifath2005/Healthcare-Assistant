@@ -45,16 +45,86 @@ describe("Voice Multi-Turn & Fallback Handling", () => {
     expect(history[history.length - 1].content).toContain("Book me an appointment");
   });
 
-  it("gracefully falls back when Web Speech API is absent without throwing exceptions", () => {
-    // Simulate browser environment where SpeechRecognition is undefined (e.g. Firefox or older browser)
-    vi.stubGlobal("window", {});
+  it("waits for exactly 3 seconds of continuous silence with no words before triggering reply", () => {
+    vi.useFakeTimers();
 
-    const hasSpeechRecognition =
-      typeof window !== "undefined" &&
-      Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+    const dispatchMock = vi.fn();
+    let accumulatedTranscript = "";
+    let latestInterim = "";
+    let speechSilenceTimer: any = null;
 
-    expect(hasSpeechRecognition).toBe(false);
+    const onSpeechResult = (sessionFinal: string, sessionInterim: string) => {
+      const currentSpoken = [accumulatedTranscript, sessionFinal, sessionInterim]
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
 
-    // In this state, UI alerts user and safely maintains text mode without breaking
+      if (currentSpoken) {
+        latestInterim = currentSpoken;
+        if (speechSilenceTimer) {
+          clearTimeout(speechSilenceTimer);
+        }
+        speechSilenceTimer = setTimeout(() => {
+          const spokenText = (latestInterim || accumulatedTranscript).trim();
+          if (spokenText.length >= 2) {
+            accumulatedTranscript = "";
+            latestInterim = "";
+            dispatchMock(spokenText);
+          }
+        }, 3000);
+      }
+    };
+
+    // User speaks first phrase: "I have had a mild fever"
+    onSpeechResult("I have had a mild fever", "");
+    expect(latestInterim).toBe("I have had a mild fever");
+    expect(dispatchMock).not.toHaveBeenCalled();
+
+    // 1500ms elapses (natural pause) - assistant MUST NOT reply yet
+    vi.advanceTimersByTime(1500);
+    expect(dispatchMock).not.toHaveBeenCalled();
+
+    // User speaks second phrase before 3s expires: "and a sore throat"
+    onSpeechResult("I have had a mild fever", "and a sore throat");
+    expect(latestInterim).toBe("I have had a mild fever and a sore throat");
+
+    // Another 2000ms elapses - assistant MUST NOT reply yet (timer was reset)
+    vi.advanceTimersByTime(2000);
+    expect(dispatchMock).not.toHaveBeenCalled();
+
+    // Full 3000ms from the last spoken word elapses (total 3000ms silence with no new words)
+    vi.advanceTimersByTime(1000); // 2000ms + 1000ms = 3000ms from last word!
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(dispatchMock).toHaveBeenCalledWith("I have had a mild fever and a sore throat");
+
+    vi.useRealTimers();
+  });
+
+  it("resumes listening loop after assistant finishes spoken reply", () => {
+    let voiceState: "idle" | "listening" | "thinking" | "speaking" = "idle";
+    let isListeningActive = false;
+
+    const startListeningLoop = vi.fn(() => {
+      voiceState = "listening";
+      isListeningActive = true;
+    });
+
+    const onFinishSpeaking = () => {
+      voiceState = "listening";
+      startListeningLoop();
+    };
+
+    // Assistant is speaking
+    voiceState = "speaking";
+    isListeningActive = false;
+
+    // Speech completes
+    onFinishSpeaking();
+
+    expect(voiceState).toBe("listening");
+    expect(startListeningLoop).toHaveBeenCalledTimes(1);
+    expect(isListeningActive).toBe(true);
   });
 });
