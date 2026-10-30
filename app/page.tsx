@@ -56,15 +56,18 @@ export default function HomePage() {
       .then(({ data }) => {
         if (!isMounted) return;
         clearTimeout(authTimer);
-        setUser(data?.user || null);
+        if (!data?.user) {
+          router.replace("/login");
+          return;
+        }
+        setUser(data.user);
         setLoadingUser(false);
       })
       .catch((err) => {
         if (!isMounted) return;
         clearTimeout(authTimer);
         console.warn("Auth check notice:", err);
-        setUser(null);
-        setLoadingUser(false);
+        router.replace("/login");
       });
 
     const {
@@ -74,6 +77,7 @@ export default function HomePage() {
       if (event === "SIGNED_OUT") {
         setUser(null);
         setLoadingUser(false);
+        router.replace("/login");
       } else if (session?.user) {
         setUser(session.user);
         setLoadingUser(false);
@@ -85,7 +89,7 @@ export default function HomePage() {
       clearTimeout(authTimer);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -102,6 +106,21 @@ export default function HomePage() {
     setSessionKey((prev) => prev + 1);
     clearGuestMessages();
   };
+
+  if (loadingUser) {
+    return (
+      <div className="flex h-[100dvh] items-center justify-center bg-white dark:bg-slate-950">
+        <div className="flex flex-col items-center gap-3">
+          <div className="p-3 bg-emerald-600 rounded-2xl text-white shadow-lg animate-pulse">
+            <HeartPulse className="w-8 h-8" />
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            Loading your healthcare session...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden bg-white dark:bg-slate-950">

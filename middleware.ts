@@ -28,10 +28,14 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Revalidate auth token with getUser()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Revalidate auth token with getUser() safely
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user || null;
+  } catch {
+    user = null;
+  }
 
   const url = request.nextUrl.clone();
   const pathname = url.pathname;
@@ -43,9 +47,9 @@ export async function middleware(request: NextRequest) {
     pathname === "/reset-password" ||
     pathname === "/verify-email";
 
+  // Publicly accessible pages without login (root conversation page '/' requires login)
   const isPublicRoute =
     isAuthRoute ||
-    pathname === "/" ||
     pathname === "/terms" ||
     pathname === "/privacy" ||
     pathname === "/doctor/login" ||
