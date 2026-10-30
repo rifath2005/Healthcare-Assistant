@@ -34,7 +34,8 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setAuthError(null);
 
-    if (!email.trim() || !password.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password.trim()) {
       setAuthError("Please provide your administrative email and password.");
       toast.error("Credentials required");
       return;
@@ -45,7 +46,7 @@ export default function AdminLoginPage() {
     try {
       const supabase = createClient();
       const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: normalizedEmail,
         password: password.trim(),
       });
 
@@ -125,12 +126,18 @@ export default function AdminLoginPage() {
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value.toLowerCase())}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder="admin@healthcare.local or your email"
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
                 />
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               </div>
+              <p className="text-[11px] text-slate-400 pt-1">
+                Admin email is automatically formatted to lowercase
+              </p>
             </div>
 
             <div>

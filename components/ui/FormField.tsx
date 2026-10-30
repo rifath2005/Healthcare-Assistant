@@ -8,8 +8,15 @@ export interface FormFieldProps extends React.InputHTMLAttributes<HTMLInputEleme
 }
 
 export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
-  ({ label, error, helperText, className, id, ...props }, ref) => {
+  ({ label, error, helperText, className, id, type, onChange, autoCapitalize, autoCorrect, spellCheck, ...props }, ref) => {
     const inputId = id || props.name || Math.random().toString(36).substring(7);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (type === "email" && e.target.value) {
+        e.target.value = e.target.value.toLowerCase();
+      }
+      onChange?.(e);
+    };
 
     return (
       <div className="space-y-1.5 w-full">
@@ -22,6 +29,10 @@ export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
         <input
           id={inputId}
           ref={ref}
+          type={type}
+          autoCapitalize={type === "email" ? "none" : autoCapitalize}
+          autoCorrect={type === "email" ? "off" : autoCorrect}
+          spellCheck={type === "email" ? false : spellCheck}
           className={cn(
             "w-full px-3.5 py-2.5 text-sm rounded-xl border bg-white dark:bg-slate-900 transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500",
             error
@@ -29,6 +40,7 @@ export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
               : "border-slate-300 dark:border-slate-700 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500",
             className
           )}
+          onChange={handleChange}
           {...props}
         />
         {error ? (

@@ -35,10 +35,11 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
+      const normalizedEmail = data.email.trim().toLowerCase();
       const supabase = createClient();
 
       const { data: authData, error } = await supabase.auth.signUp({
-        email: data.email,
+        email: normalizedEmail,
         password: data.password,
         options: {
           data: {
@@ -67,7 +68,7 @@ export default function SignupPage() {
 
       // If email confirmation required
       if (authData.session === null) {
-        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
+        router.push(`/verify-email?email=${encodeURIComponent(normalizedEmail)}`);
       } else {
         window.location.href = "/";
       }
@@ -111,6 +112,7 @@ export default function SignupPage() {
             label="Email Address"
             type="email"
             placeholder="jane@example.com"
+            helperText="Email is automatically formatted to lowercase"
             error={errors.email?.message}
             {...register("email")}
           />

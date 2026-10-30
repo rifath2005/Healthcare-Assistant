@@ -29,7 +29,8 @@ export default function DoctorLoginPage() {
     e.preventDefault();
     setAuthError(null);
 
-    if (!email.trim() || !password.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password.trim()) {
       setAuthError("Please provide both your provider ID/email and security key.");
       toast.error("Credentials required");
       return;
@@ -41,7 +42,7 @@ export default function DoctorLoginPage() {
       const res = await fetch("/api/doctor/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
       });
 
       const data = await res.json();
@@ -110,13 +111,19 @@ export default function DoctorLoginPage() {
                 <input
                   type="text"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value.toLowerCase())}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder="e.g. elena.rostova@healthcare.local"
                   required
                   autoComplete="username"
                   className="w-full pl-9 pr-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Provider email or code is automatically formatted to lowercase
+              </p>
             </div>
 
             <div className="space-y-1.5">

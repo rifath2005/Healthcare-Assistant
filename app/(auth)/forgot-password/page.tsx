@@ -26,10 +26,11 @@ export default function ForgotPasswordPage() {
   const onSubmit = async (data: ForgotPasswordInput) => {
     setLoading(true);
     try {
+      const normalizedEmail = data.email.trim().toLowerCase();
       const supabase = createClient();
       const redirectTo = `${window.location.origin}/reset-password`;
 
-      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
         redirectTo,
       });
 
@@ -82,6 +83,7 @@ export default function ForgotPasswordPage() {
               label="Email Address"
               type="email"
               placeholder="jane@example.com"
+              helperText="Email is automatically formatted to lowercase"
               error={errors.email?.message}
               {...register("email")}
             />

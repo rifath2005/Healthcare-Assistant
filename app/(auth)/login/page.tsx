@@ -40,15 +40,16 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      const normalizedEmail = data.email.trim().toLowerCase();
       const supabase = createClient();
       const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: data.email,
+        email: normalizedEmail,
         password: data.password,
       });
 
       if (error) {
         if (error.message.toLowerCase().includes("email not confirmed")) {
-          setUnverifiedEmail(data.email);
+          setUnverifiedEmail(normalizedEmail);
           setServerError("Your email address has not been verified yet.");
         } else if (error.message.toLowerCase().includes("invalid login credentials")) {
           setServerError("Invalid email or password. Please verify your credentials.");
@@ -134,6 +135,7 @@ export default function LoginPage() {
             label="Email Address"
             type="email"
             placeholder="jane@example.com"
+            helperText="Email is automatically formatted to lowercase"
             error={errors.email?.message}
             {...register("email")}
           />
