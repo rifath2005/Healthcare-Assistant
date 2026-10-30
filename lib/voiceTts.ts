@@ -111,6 +111,22 @@ export class VoiceTtsManager {
     this.hasSpokenDisclaimerSession = val;
   }
 
+  public isPlaybackActive(): boolean {
+    return this.isSpeaking || this.queue.length > 0 || this.tokenBuffer.trim().length > 0;
+  }
+
+  public getQueueLength(): number {
+    return this.queue.length;
+  }
+
+  public getIsSpeaking(): boolean {
+    return this.isSpeaking;
+  }
+
+  public hasPendingBuffer(): boolean {
+    return this.tokenBuffer.trim().length > 0;
+  }
+
   /**
    * Resets session state.
    */

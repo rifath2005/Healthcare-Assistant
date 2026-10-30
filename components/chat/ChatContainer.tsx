@@ -125,6 +125,17 @@ export function ChatContainer({
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Synchronous ref + state helpers to prevent render-latency race conditions
+  const updateLoading = useCallback((val: boolean) => {
+    isLoadingRef.current = val;
+    setIsLoading(val);
+  }, []);
+
+  const updateVoiceState = useCallback((state: VoiceState) => {
+    voiceStateRef.current = state;
+    setVoiceState(state);
+  }, []);
+
   // Keep refs in sync with state
   useEffect(() => {
     isVoiceModeRef.current = isVoiceMode;
@@ -179,30 +190,50 @@ export function ChatContainer({
   useEffect(() => {
     voiceTtsRef.current.updateOptions({
       onStartSpeaking: () => {
-        setVoiceState("speaking");
+        updateVoiceState("speaking");
+        // Pause microphone while bot is speaking to prevent acoustic feedback / recognition abort
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.stop();
+          } catch {}
+        }
+        isListeningActiveRef.current = false;
       },
       onSentenceSpoken: (sentence) => {
         setSpeakingSentence(sentence);
       },
       onFinishSpeaking: () => {
         setSpeakingSentence("");
-        if (isVoiceModeRef.current) {
-          if (pendingVoiceActionRef.current) {
-            setVoiceState("awaiting_confirmation");
-          } else {
-            setVoiceState("listening");
-          }
-          startListeningLoop();
-        } else {
-          setVoiceState("idle");
+        if (!isVoiceModeRef.current) {
+          updateVoiceState("idle");
+          return;
         }
+
+        // If the model is STILL streaming tokens or TTS is still playing/buffering,
+        // stay in "thinking" mode and wait for remaining speech
+        if (isLoadingRef.current || voiceTtsRef.current.isPlaybackActive()) {
+          updateVoiceState("thinking");
+          return;
+        }
+
+        // Entire response has finished speaking!
+        if (pendingVoiceActionRef.current) {
+          updateVoiceState("awaiting_confirmation");
+        } else {
+          updateVoiceState("listening");
+        }
+        startListeningLoop();
       },
       onError: (err) => {
         console.warn("TTS error:", err);
         setSpeakingSentence("");
         if (isVoiceModeRef.current) {
-          setVoiceState("listening");
-          startListeningLoop();
+          if (isLoadingRef.current || voiceTtsRef.current.isPlaybackActive()) {
+            updateVoiceState("thinking");
+          } else {
+            updateVoiceState("listening");
+            startListeningLoop();
+          }
         }
       },
       onProviderChange: (provider) => {
@@ -220,7 +251,7 @@ export function ChatContainer({
         } catch {}
       }
     };
-  }, [loadUserAppointments]);
+  }, [loadUserAppointments, updateVoiceState]);
 
   // Load past conversation messages from Supabase or localStorage
   useEffect(() => {
@@ -285,7 +316,8 @@ export function ChatContainer({
     if (
       voiceStateRef.current === "speaking" ||
       voiceStateRef.current === "thinking" ||
-      isLoadingRef.current
+      isLoadingRef.current ||
+      voiceTtsRef.current.isPlaybackActive()
     ) {
       return;
     }
@@ -313,9 +345,9 @@ export function ChatContainer({
       recognition.onstart = () => {
         isListeningActiveRef.current = true;
         if (pendingVoiceActionRef.current) {
-          setVoiceState("awaiting_confirmation");
+          updateVoiceState("awaiting_confirmation");
         } else {
-          setVoiceState("listening");
+          updateVoiceState("listening");
         }
       };
 
@@ -343,10 +375,15 @@ export function ChatContainer({
           }
           speechSilenceTimerRef.current = setTimeout(() => {
             const spokenText = latestInterimRef.current.trim();
-            if (spokenText.length >= 2 && isVoiceModeRef.current && voiceStateRef.current === "listening") {
+            if (
+              spokenText.length >= 2 &&
+              isVoiceModeRef.current &&
+              (voiceStateRef.current === "listening" || voiceStateRef.current === "awaiting_confirmation")
+            ) {
               latestInterimRef.current = "";
               setFinalTranscript(spokenText);
               setInterimTranscript("");
+              isListeningActiveRef.current = false;
               try {
                 recognition.stop();
               } catch {}
@@ -364,6 +401,7 @@ export function ChatContainer({
           const cleanFinal = final.trim();
           setFinalTranscript(cleanFinal);
           setInterimTranscript("");
+          isListeningActiveRef.current = false;
 
           try {
             recognition.stop();
@@ -386,7 +424,6 @@ export function ChatContainer({
         }
 
         // For temporary network hiccups from Chrome's speech recognition server,
-        // do not display an alarming error toast or drop state to idle;
         // let the onend handler safely reconnect.
         if (event.error === "network") {
           return;
@@ -402,7 +439,8 @@ export function ChatContainer({
           isVoiceModeRef.current &&
           voiceStateRef.current !== "speaking" &&
           voiceStateRef.current !== "thinking" &&
-          !isLoadingRef.current
+          !isLoadingRef.current &&
+          !voiceTtsRef.current.isPlaybackActive()
         ) {
           if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
           reconnectTimerRef.current = setTimeout(() => {
@@ -410,21 +448,52 @@ export function ChatContainer({
               isVoiceModeRef.current &&
               voiceStateRef.current !== "speaking" &&
               voiceStateRef.current !== "thinking" &&
-              !isLoadingRef.current
+              !isLoadingRef.current &&
+              !voiceTtsRef.current.isPlaybackActive()
             ) {
               startListeningLoop();
             }
-          }, 350);
+          }, 300);
         }
       };
 
       recognitionRef.current = recognition;
       recognition.start();
-    } catch (err) {
+    } catch (err: any) {
       isListeningActiveRef.current = false;
-      console.warn("SpeechRecognition start notice:", err);
+      if (err?.name === "InvalidStateError") {
+        isListeningActiveRef.current = true;
+      } else {
+        console.warn("SpeechRecognition start notice:", err);
+      }
     }
   };
+
+  // Unbreakable self-healing watchdog: restores speech recognition if Chrome or network dropped
+  // while the assistant is waiting for user speech
+  useEffect(() => {
+    if (!isVoiceMode) return;
+
+    const watchdog = setInterval(() => {
+      if (!isVoiceModeRef.current) return;
+      const isBusy =
+        isLoadingRef.current ||
+        voiceTtsRef.current.isPlaybackActive() ||
+        voiceStateRef.current === "speaking" ||
+        voiceStateRef.current === "thinking";
+
+      if (!isBusy && !isListeningActiveRef.current) {
+        if (pendingVoiceActionRef.current) {
+          updateVoiceState("awaiting_confirmation");
+        } else {
+          updateVoiceState("listening");
+        }
+        startListeningLoop();
+      }
+    }, 1200);
+
+    return () => clearInterval(watchdog);
+  }, [isVoiceMode, updateVoiceState]);
 
   const activateVoiceMode = async () => {
     const SpeechRecognition =
@@ -453,7 +522,7 @@ export function ChatContainer({
 
     setIsVoiceMode(true);
     isVoiceModeRef.current = true;
-    setVoiceState("listening");
+    updateVoiceState("listening");
     toast.success("Talkative Spoken Voice Mode activated.");
 
     // Detect neural voice capability in background without blocking
@@ -462,17 +531,18 @@ export function ChatContainer({
     // Mandatory: Speak medical disclaimer at least once per voice session
     if (voiceTtsRef.current && !voiceTtsRef.current.getHasSpokenDisclaimer()) {
       voiceTtsRef.current.setHasSpokenDisclaimer(true);
-      setVoiceState("speaking");
+      updateVoiceState("speaking");
       voiceTtsRef.current.speakSentence(
         "Talkative voice mode active. " + SPOKEN_MEDICAL_DISCLAIMER,
         () => {
           if (isVoiceModeRef.current) {
-            setVoiceState("listening");
+            updateVoiceState("listening");
             startListeningLoop();
           }
         }
       );
     } else {
+      updateVoiceState("listening");
       startListeningLoop();
     }
   };
@@ -481,7 +551,7 @@ export function ChatContainer({
     setIsVoiceMode(false);
     isVoiceModeRef.current = false;
     isListeningActiveRef.current = false;
-    setVoiceState("idle");
+    updateVoiceState("idle");
     setInterimTranscript("");
     setSpeakingSentence("");
     setPendingVoiceAction(null);
@@ -524,10 +594,10 @@ export function ChatContainer({
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    setIsLoading(false);
+    updateLoading(false);
     setSpeakingSentence("");
     if (isVoiceModeRef.current) {
-      setVoiceState("listening");
+      updateVoiceState("listening");
       startListeningLoop();
     }
   };
@@ -535,7 +605,7 @@ export function ChatContainer({
   // --- Voice Action Execution Flow ---
   const executeConfirmedAction = async (action: PendingVoiceAction) => {
     setActionExecuting(true);
-    setVoiceState("thinking");
+    updateVoiceState("thinking");
 
     try {
       if (action.type === "book") {
@@ -651,10 +721,10 @@ export function ChatContainer({
     setMessages((prev) => [...prev, astMsg]);
 
     if (isVoiceModeRef.current) {
-      setVoiceState("speaking");
+      updateVoiceState("speaking");
       voiceTtsRef.current.speakSentence(text, () => {
         if (isVoiceModeRef.current) {
-          setVoiceState("listening");
+          updateVoiceState("listening");
           startListeningLoop();
         }
       });
@@ -675,7 +745,7 @@ export function ChatContainer({
     setMessages([freshWelcome]);
     clearGuestMessages();
     setCrisisState({ triggered: false });
-    setIsLoading(false);
+    updateLoading(false);
     setDetectedMood("neutral");
     setPendingVoiceAction(null);
     pendingVoiceActionRef.current = null;
@@ -707,7 +777,7 @@ export function ChatContainer({
     if (detectedAction) {
       setPendingVoiceAction(detectedAction);
       pendingVoiceActionRef.current = detectedAction;
-      setVoiceState("awaiting_confirmation");
+      updateVoiceState("awaiting_confirmation");
 
       // Instantly speak the confirmation prompt (< 50ms)!
       voiceTtsRef.current.speakConfirmationPrompt(detectedAction.spokenPrompt, () => {
@@ -743,7 +813,7 @@ export function ChatContainer({
     ];
     const ack = acknowledgments[Math.floor(Math.random() * acknowledgments.length)];
     setSpeakingSentence(ack);
-    setVoiceState("speaking");
+    updateVoiceState("speaking");
     voiceTtsRef.current.speakSentence(ack);
 
     // Concurrently trigger fast streaming chat
@@ -769,17 +839,18 @@ export function ChatContainer({
 
     const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
-    setIsLoading(true);
+    updateLoading(true);
 
     if (isVoiceModeRef.current) {
       if (!options.isFromVoiceTurn) {
-        setVoiceState("thinking");
+        updateVoiceState("thinking");
       }
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
         } catch {}
       }
+      isListeningActiveRef.current = false;
     }
 
     // Save to local guest storage if unauthenticated
@@ -849,10 +920,15 @@ export function ChatContainer({
             created_at: new Date().toISOString(),
           },
         ]);
+        updateLoading(false);
         if (isVoiceModeRef.current) {
-          voiceTtsRef.current.speakSentence(errContent);
+          voiceTtsRef.current.speakSentence(errContent, () => {
+            if (isVoiceModeRef.current) {
+              updateVoiceState("listening");
+              startListeningLoop();
+            }
+          });
         }
-        setIsLoading(false);
         return;
       }
 
@@ -907,7 +983,7 @@ export function ChatContainer({
                 severity: data.severity,
                 trigger: data.trigger,
               });
-              setIsLoading(false);
+              updateLoading(false);
 
               // Non-negotiable: deliver crisis guidance as complete, unchunked speech immediately
               if (isVoiceModeRef.current) {
@@ -936,7 +1012,7 @@ export function ChatContainer({
                 voiceTtsRef.current.feedStreamToken(data.content);
               }
             } else if (data.type === "DONE") {
-              setIsLoading(false);
+              updateLoading(false);
               if (isVoiceModeRef.current) {
                 voiceTtsRef.current.flushStreamBuffer();
 
@@ -945,6 +1021,10 @@ export function ChatContainer({
                   voiceTtsRef.current.speakConfirmationPrompt(
                     pendingVoiceActionRef.current.spokenPrompt
                   );
+                } else if (!voiceTtsRef.current.isPlaybackActive()) {
+                  // If all speech finished playing, immediately return to listening
+                  updateVoiceState("listening");
+                  startListeningLoop();
                 }
               }
             } else if (data.type === "ERROR") {
@@ -957,7 +1037,11 @@ export function ChatContainer({
                   m.id === assistantMsgId ? { ...m, content: accumulatedText } : m
                 )
               );
-              setIsLoading(false);
+              updateLoading(false);
+              if (isVoiceModeRef.current && !voiceTtsRef.current.isPlaybackActive()) {
+                updateVoiceState("listening");
+                startListeningLoop();
+              }
             }
           } catch {
             // Ignore malformed chunk
@@ -1010,7 +1094,11 @@ export function ChatContainer({
         });
       }
     } finally {
-      setIsLoading(false);
+      updateLoading(false);
+      if (isVoiceModeRef.current && !voiceTtsRef.current.isPlaybackActive()) {
+        updateVoiceState("listening");
+        startListeningLoop();
+      }
     }
   };
 

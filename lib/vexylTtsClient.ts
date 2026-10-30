@@ -138,17 +138,42 @@ export async function checkVexylHealth(timeoutMs = 1200): Promise<boolean> {
     return cachedHealthResult.available;
   }
 
-  const httpUrl = getVexylHttpUrl();
-
-  // In cloud/HTTPS production, skip fetching http://127.0.0.1 to prevent browser mixed-content security blocks
+  // When running in the browser, always check our same-origin backend proxy route /api/tts.
+  // This ensures the browser never attempts a direct network request to 127.0.0.1:8092,
+  // completely eliminating net::ERR_CONNECTION_REFUSED in the browser console.
   if (typeof window !== "undefined") {
-    const isHttps = window.location.protocol === "https:";
-    if (isHttps && isLocalVexylTarget(httpUrl)) {
+    const customHttpUrl = (window as any).__VEXYL_TTS_HTTP_URL__;
+    const targetUrl = customHttpUrl ? `${customHttpUrl}/health` : "/api/tts";
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(targetUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        cachedHealthResult = { available: false, timestamp: Date.now() };
+        return false;
+      }
+      const data = await res.json();
+      const ok =
+        data.status === "ok" ||
+        (data.status === "available" && data.provider === "vexyl-tts") ||
+        Boolean(data.model);
+      cachedHealthResult = { available: ok, timestamp: Date.now() };
+      return ok;
+    } catch {
+      clearTimeout(timer);
       cachedHealthResult = { available: false, timestamp: Date.now() };
       return false;
     }
   }
 
+  // Node.js server-side check
+  const httpUrl = getVexylHttpUrl();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 

@@ -91,7 +91,7 @@ describe("VEXYL-TTS Neural Engine Client", () => {
       const isHealthy = await checkVexylHealth(1000);
       expect(isHealthy).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:8092/health",
+        "/api/tts",
         expect.objectContaining({ method: "GET" })
       );
     });
