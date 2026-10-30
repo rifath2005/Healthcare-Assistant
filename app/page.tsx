@@ -26,17 +26,17 @@ export default function HomePage() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Auto-close sidebar on mobile devices on initial render
+  // Responsive sidebar: open by default on desktop (>=1024px), closed on mobile/tablet
   useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      setIsSidebarOpen(false);
+    if (typeof window !== "undefined") {
+      setIsSidebarOpen(window.innerWidth >= 1024);
     }
   }, []);
 
   const handleCloseMobile = () => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
       setIsSidebarOpen(false);
     }
   };
@@ -104,17 +104,17 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-white dark:bg-slate-950">
+    <div className="flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden bg-white dark:bg-slate-950">
       {/* Main Top Header */}
-      <header className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="p-2 bg-emerald-600 rounded-xl text-white shadow-xs">
-              <HeartPulse className="w-5 h-5" />
+      <header className="px-3 sm:px-4 py-2 sm:py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <Link href="/" className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 sm:p-2 bg-emerald-600 rounded-xl text-white shadow-xs shrink-0">
+              <HeartPulse className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <span className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-white">
-                Smart Healthcare Assistant
+            <div className="min-w-0">
+              <span className="font-extrabold text-xs sm:text-sm tracking-tight text-slate-900 dark:text-white truncate block">
+                Smart Healthcare<span className="hidden sm:inline"> Assistant</span>
               </span>
               <span className="hidden sm:inline-block ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                 AI Powered
@@ -124,29 +124,30 @@ export default function HomePage() {
         </div>
 
         {/* Right Action Icons & Auth Profile */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {user ? (
             <>
               <Link
                 href="/appointments"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors"
+                className="flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors"
+                title="My Appointments"
               >
                 <Calendar className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="hidden sm:inline">My Appointments</span>
+                <span className="hidden sm:inline">Appointments</span>
               </Link>
 
               <Link
                 href="/terms"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors"
                 title="Verified Medical Sources (CDC, MedlinePlus, WHO) & Terms"
               >
                 <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="hidden md:inline">Sources & Policy</span>
+                <span>Sources</span>
               </Link>
 
               <Link
                 href="/settings"
-                className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="p-1.5 sm:p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 title="Account Settings"
               >
                 <Settings className="w-4 h-4" />
@@ -155,7 +156,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                className="flex items-center gap-1 p-1.5 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                 title="Sign Out"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -163,17 +164,17 @@ export default function HomePage() {
               </button>
             </>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <Link
                 href="/login"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Sign In</span>
               </Link>
               <Link
                 href="/signup"
-                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
+                className="px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
               >
                 Get Started
               </Link>

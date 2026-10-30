@@ -113,14 +113,14 @@ export function ChatSidebar({
       {isOpen && (
         <div
           onClick={onCloseMobile}
-          className="fixed inset-0 z-40 bg-black/50 md:hidden backdrop-blur-xs"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden backdrop-blur-xs"
         />
       )}
 
       <aside
         className={cn(
-          "fixed md:static inset-y-0 left-0 z-40 w-72 bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-200 shrink-0",
-          isOpen ? "translate-x-0" : "-translate-x-full md:hidden"
+          "fixed lg:static inset-y-0 left-0 z-40 w-[82vw] max-w-xs lg:w-72 bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-200 shrink-0 shadow-xl lg:shadow-none",
+          isOpen ? "translate-x-0" : "-translate-x-full lg:hidden"
         )}
       >
         {/* Header Bar */}
@@ -141,7 +141,7 @@ export function ChatSidebar({
           <button
             type="button"
             onClick={onCloseMobile}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 md:hidden"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 lg:hidden"
             aria-label="Close history"
           >
             <X className="w-4 h-4" />

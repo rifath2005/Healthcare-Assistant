@@ -10,19 +10,19 @@ interface CrisisBannerProps {
 
 export function CrisisBanner({ severity, trigger }: CrisisBannerProps) {
   return (
-    <div className="my-4 p-6 bg-red-600 text-white rounded-3xl shadow-2xl border-4 border-red-700 animate-in fade-in zoom-in-95 duration-200">
-      <div className="flex items-start gap-4">
-        <div className="p-3 bg-white/20 rounded-2xl shrink-0">
-          <AlertTriangle className="w-8 h-8 text-white" />
+    <div className="my-2 sm:my-4 p-3.5 sm:p-6 bg-red-600 text-white rounded-2xl sm:rounded-3xl shadow-2xl border-2 sm:border-4 border-red-700 animate-in fade-in zoom-in-95 duration-200">
+      <div className="flex items-start gap-2.5 sm:gap-4">
+        <div className="p-2 sm:p-3 bg-white/20 rounded-xl sm:rounded-2xl shrink-0">
+          <AlertTriangle className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
         </div>
-        <div className="space-y-2 flex-1">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/25 rounded-full text-xs font-bold tracking-wide uppercase">
+        <div className="space-y-1.5 sm:space-y-2 flex-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 bg-white/25 rounded-full text-[10px] sm:text-xs font-bold tracking-wide uppercase">
             Immediate Crisis Intervention Active
           </div>
-          <h3 className="text-xl font-extrabold text-white">
+          <h3 className="text-base sm:text-xl font-extrabold text-white">
             Help Is Available. You Are Not Alone.
           </h3>
-          <p className="text-sm text-red-50 leading-relaxed">
+          <p className="text-xs sm:text-sm text-red-50 leading-relaxed">
             Our safety system detected words indicating acute distress or physical emergency. Please step away from this AI assistant and reach out to compassionate human professionals immediately. Free, confidential assistance is available right now.
           </p>
 

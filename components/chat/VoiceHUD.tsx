@@ -173,11 +173,11 @@ export function VoiceHUD({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xl animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xl animate-in fade-in duration-200"
       role="region"
       aria-label="Talkative Voice Mode Overlay"
     >
-      <div className="bg-white/95 dark:bg-slate-900/95 border border-emerald-500/30 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl relative space-y-5">
+      <div className="bg-white/95 dark:bg-slate-900/95 border border-emerald-500/30 rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[92dvh] overflow-y-auto p-4 sm:p-6 shadow-2xl relative space-y-3 sm:space-y-4">
         {/* Top Header: Title, Tone & Close */}
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3.5">
           <div className="flex items-center gap-2.5">

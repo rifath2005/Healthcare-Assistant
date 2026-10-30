@@ -127,26 +127,26 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        "flex gap-3 py-3 px-1 transition-all",
+        "flex gap-2 sm:gap-3 py-1 sm:py-2 px-0.5 sm:px-1 transition-all",
         isUser ? "flex-row-reverse" : "flex-row"
       )}
     >
       {/* Avatar */}
       <div
         className={cn(
-          "w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 shadow-sm",
+          "w-7 h-7 sm:w-8 sm:h-8 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 shadow-sm",
           isUser
             ? "bg-emerald-600 text-white"
             : "bg-slate-900 dark:bg-emerald-950 text-emerald-400 border border-emerald-500/20"
         )}
       >
-        {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+        {isUser ? <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
       </div>
 
       {/* Bubble Content */}
       <div
         className={cn(
-          "max-w-2xl rounded-3xl p-4 text-sm leading-relaxed space-y-2.5 shadow-xs",
+          "max-w-[90%] sm:max-w-2xl rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 text-xs sm:text-sm leading-relaxed space-y-1.5 sm:space-y-2.5 shadow-xs",
           isUser
             ? "bg-emerald-600 text-white rounded-tr-xs"
             : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-xs"

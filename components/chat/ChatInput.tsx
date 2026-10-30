@@ -83,7 +83,7 @@ export function ChatInput({
   return (
     <div
       onClick={() => textareaRef.current?.focus()}
-      className="relative border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm focus-within:ring-2 focus-within:ring-emerald-500/50 focus-within:border-emerald-500 transition-all p-2.5 cursor-text"
+      className="relative border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm focus-within:ring-2 focus-within:ring-emerald-500/50 focus-within:border-emerald-500 transition-all p-2 sm:p-2.5 cursor-text"
     >
       <textarea
         ref={textareaRef}
@@ -95,14 +95,14 @@ export function ChatInput({
         readOnly={isLoading}
         placeholder={isLoading ? "Healthcare Assistant is replying..." : placeholder}
         className={cn(
-          "w-full resize-none bg-transparent px-2.5 py-1 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none max-h-44",
+          "w-full resize-none bg-transparent px-2 sm:px-2.5 py-1 text-xs sm:text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none max-h-44",
           isLoading && "cursor-wait opacity-70",
           disabled && "opacity-50 cursor-not-allowed"
         )}
       />
 
-      <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/60 mt-1 px-1">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between pt-1.5 sm:pt-2 border-t border-slate-100 dark:border-slate-800/60 mt-0.5 sm:mt-1 px-0.5 sm:px-1">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <VoiceInputButton
             onTranscript={handleVoiceTranscript}
             disabled={disabled || isLoading}
@@ -113,7 +113,7 @@ export function ChatInput({
               onClick={onToggleVoiceMode}
               disabled={disabled || isLoading}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all",
+                "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-semibold border transition-all",
                 isVoiceMode
                   ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
                   : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:text-emerald-600"
@@ -124,7 +124,7 @@ export function ChatInput({
               <span className="hidden sm:inline">{isVoiceMode ? "Voice Active" : "Voice Mode"}</span>
             </button>
           )}
-          <span className="text-[11px] text-slate-400 dark:text-slate-500 select-none">
+          <span className="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 select-none">
             {content.length}/{MAX_CHARACTERS}
           </span>
         </div>
@@ -134,7 +134,7 @@ export function ChatInput({
           onClick={() => handleSubmit()}
           disabled={!content.trim() || isLoading || disabled}
           className={cn(
-            "p-2.5 rounded-xl font-medium text-sm flex items-center justify-center transition-all",
+            "p-2 sm:p-2.5 rounded-xl font-medium text-sm flex items-center justify-center transition-all",
             content.trim() && !isLoading
               ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
               : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"

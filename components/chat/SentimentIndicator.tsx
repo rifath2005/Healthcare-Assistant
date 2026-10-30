@@ -15,7 +15,7 @@ export function SentimentIndicator({
   const isElevated = mood && ["anxious", "depressed", "stressed", "overwhelmed"].includes(mood.toLowerCase());
 
   return (
-    <div className="flex items-center justify-between text-xs py-1.5 px-3 bg-slate-50/90 dark:bg-slate-800/60 rounded-xl mb-1.5 border border-slate-200/70 dark:border-slate-700/60">
+    <div className="flex items-center justify-between text-[11px] sm:text-xs py-1 sm:py-1.5 px-2.5 sm:px-3 bg-slate-50/90 dark:bg-slate-800/60 rounded-lg sm:rounded-xl mb-1 sm:mb-1.5 border border-slate-200/70 dark:border-slate-700/60">
       <div className="flex items-center gap-2">
         <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
         <span className="text-slate-600 dark:text-slate-300 truncate">
