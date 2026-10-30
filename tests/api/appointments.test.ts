@@ -44,6 +44,36 @@ vi.mock("@/lib/supabase/server", () => {
         from: vi.fn(() => mockQueryBuilder),
       };
     },
+    createAdminClient: () => {
+      const mockQueryBuilder: any = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        lt: vi.fn().mockReturnThis(),
+        gt: vi.fn().mockReturnThis(),
+        insert: vi.fn().mockReturnThis(),
+        upsert: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        single: vi.fn().mockImplementation(async function (this: any) {
+          return {
+            data: {
+              id: "123e4567-e89b-12d3-a456-426614174000",
+              name: "Dr. Elena Rostova",
+              specialty: "General Practice",
+              calendar_id: "primary",
+              full_name: "John Patient",
+              email: "patient@example.com",
+              status: "confirmed",
+              meet_link: "https://meet.google.com/abc-defg-hij",
+            },
+            error: null,
+          };
+        }),
+      };
+      return {
+        from: vi.fn(() => mockQueryBuilder),
+      };
+    },
   };
 });
 

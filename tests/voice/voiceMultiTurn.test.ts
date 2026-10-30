@@ -12,7 +12,7 @@ describe("Voice Multi-Turn & Fallback Handling", () => {
     const voiceModel = getChatModel({ isVoiceMode: true });
     const voiceInstruction = JSON.stringify((voiceModel as any).systemInstruction || "");
     expect(voiceInstruction).toContain("SPOKEN VOICE CONVERSATION MODE ACTIVE");
-    expect(voiceInstruction).toContain("Natural Verbal Acknowledgments");
+    expect(voiceInstruction).toContain("Direct Clinical Solution");
     expect(voiceInstruction).toContain("Explicit Confirmation for Voice Actions");
   });
 

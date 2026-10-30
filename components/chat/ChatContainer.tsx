@@ -104,9 +104,11 @@ export function ChatContainer({
   const [vexylLang, setVexylLang] = useState<string>("en-IN");
   const [vexylStyle, setVexylStyle] = useState<"warm" | "default" | "formal">("warm");
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
+  const [isMicMuted, setIsMicMuted] = useState(false);
 
   // Refs for stable callbacks
   const isVoiceModeRef = useRef<boolean>(false);
+  const isMicMutedRef = useRef<boolean>(false);
   const voiceStateRef = useRef<VoiceState>("idle");
   const isLoadingRef = useRef<boolean>(false);
   const isListeningActiveRef = useRef<boolean>(false);
@@ -139,6 +141,46 @@ export function ChatContainer({
 
   const startListeningLoopRef = useRef<() => void>(() => {});
   const messagesLengthRef = useRef<number>(0);
+
+  // Mute / Unmute Microphone toggle handler
+  const toggleMuteMic = useCallback(() => {
+    const nextMuted = !isMicMutedRef.current;
+    isMicMutedRef.current = nextMuted;
+    setIsMicMuted(nextMuted);
+
+    if (micStreamRef.current) {
+      micStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = !nextMuted;
+      });
+    }
+
+    if (nextMuted) {
+      if (speechSilenceTimerRef.current) {
+        clearTimeout(speechSilenceTimerRef.current);
+        speechSilenceTimerRef.current = null;
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+      isListeningActiveRef.current = false;
+      setInterimTranscript("");
+      toast.info("Microphone muted");
+    } else {
+      toast.success("Microphone unmuted");
+      if (
+        isVoiceModeRef.current &&
+        !isLoadingRef.current &&
+        !voiceTtsRef.current.isPlaybackActive() &&
+        voiceStateRef.current !== "speaking" &&
+        voiceStateRef.current !== "thinking"
+      ) {
+        updateVoiceState("listening");
+        startListeningLoopRef.current();
+      }
+    }
+  }, [updateVoiceState]);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -320,6 +362,7 @@ export function ChatContainer({
   // --- Voice Loop Methods ---
   const startListeningLoop = () => {
     if (!isVoiceModeRef.current) return;
+    if (isMicMutedRef.current) return;
     if (isListeningActiveRef.current) return;
     if (
       voiceStateRef.current === "speaking" ||
@@ -506,6 +549,7 @@ export function ChatContainer({
 
     const watchdog = setInterval(() => {
       if (!isVoiceModeRef.current) return;
+      if (isMicMutedRef.current) return;
       const isBusy =
         isLoadingRef.current ||
         voiceTtsRef.current.isPlaybackActive() ||
@@ -552,6 +596,8 @@ export function ChatContainer({
 
     setIsVoiceMode(true);
     isVoiceModeRef.current = true;
+    isMicMutedRef.current = false;
+    setIsMicMuted(false);
     updateVoiceState("listening");
     toast.success("Talkative Spoken Voice Mode activated.");
 
@@ -580,6 +626,8 @@ export function ChatContainer({
   const exitVoiceMode = () => {
     setIsVoiceMode(false);
     isVoiceModeRef.current = false;
+    isMicMutedRef.current = false;
+    setIsMicMuted(false);
     isListeningActiveRef.current = false;
     updateVoiceState("idle");
     setInterimTranscript("");
@@ -672,12 +720,33 @@ export function ChatContainer({
           return;
         }
 
-        const modeLabel =
-          action.consultationType === "direct"
-            ? "in-person clinic consultation"
-            : "virtual telehealth consultation";
-        const spoken = `Confirmed! Your ${modeLabel} with ${action.doctor.name} for ${action.dateDisplay} at ${action.timeDisplay} is booked. Confirmation details have been sent.`;
-        appendAssistantSpoken(spoken);
+        const appt = data.appointment || {};
+        const isVirtual = action.consultationType !== "direct";
+        const meetLink = appt.meetLink;
+        const doctorName = appt.doctorName || action.doctor.name;
+        const doctorSpecialty = appt.doctorSpecialty || action.doctor.specialty;
+        const formattedTime = appt.formattedTime || `${action.dateDisplay} at ${action.timeDisplay}`;
+        const clinicRoom = appt.clinicRoom || action.doctor.clinicRoom || "HealthCare Clinic Center, Room 102";
+
+        const richMarkdown = isVirtual
+          ? `### ✅ Virtual Telehealth Consultation Confirmed!\n\n` +
+            `Your appointment with **${doctorName}** (${doctorSpecialty}) has been successfully scheduled.\n\n` +
+            `- 📅 **Date & Time:** ${formattedTime}\n` +
+            `- 🌐 **Consultation Mode:** Virtual Video (Google Meet)\n` +
+            (meetLink ? `- 🔗 **Meeting Link:** [👉 Click here to join your Google Meet Consultation](${meetLink})\n\n` : `\n`) +
+            `📧 *Confirmation email and calendar invite with meeting link have been dispatched to both you and Dr. ${doctorName.replace(/^Dr\.\s*/, "")}.*`
+          : `### ✅ In-Person Clinic Consultation Confirmed!\n\n` +
+            `Your appointment with **${doctorName}** (${doctorSpecialty}) has been successfully scheduled.\n\n` +
+            `- 📅 **Date & Time:** ${formattedTime}\n` +
+            `- 🏥 **Consultation Mode:** Direct In-Person Clinic Visit\n` +
+            `- 📍 **Clinic Location:** ${clinicRoom}\n\n` +
+            `📧 *Confirmation email and clinic arrival directions have been dispatched to both you and Dr. ${doctorName.replace(/^Dr\.\s*/, "")}.*`;
+
+        const spokenConfirmation = isVirtual
+          ? `Your consultation with ${doctorName} is confirmed for ${action.timeDisplay}. I have sent the Google Meet link to your email and placed the link right here in our chat.`
+          : `Your in-person appointment with ${doctorName} is confirmed for ${action.timeDisplay}. Confirmation details and clinic directions have been sent to your email.`;
+
+        appendActionConfirmation(richMarkdown, spokenConfirmation);
         loadUserAppointments();
       } else if (action.type === "reschedule") {
         const res = await fetch("/api/appointments/reschedule", {
@@ -743,6 +812,26 @@ export function ChatContainer({
     pendingVoiceActionRef.current = null;
     const spoken = "Understood. That action has been cancelled. How else can I assist you today?";
     appendAssistantSpoken(spoken);
+  };
+
+  const appendActionConfirmation = (richMarkdown: string, spokenText: string) => {
+    const astMsg: Message = {
+      id: `ast_act_${Date.now()}`,
+      role: "assistant",
+      content: richMarkdown,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, astMsg]);
+
+    if (isVoiceModeRef.current) {
+      updateVoiceState("speaking");
+      voiceTtsRef.current.speakSentence(spokenText, () => {
+        if (isVoiceModeRef.current) {
+          updateVoiceState("listening");
+          startListeningLoop();
+        }
+      });
+    }
   };
 
   const appendAssistantSpoken = (text: string) => {
@@ -847,19 +936,8 @@ export function ChatContainer({
     }
 
     // 3. For general clinical queries:
-    // Speak an immediate warm verbal acknowledgment so the user gets an INSTANT voice reply in < 80ms!
-    const acknowledgments = [
-      "Let me check that for you.",
-      "Looking into your symptoms now.",
-      "I understand, checking that right away.",
-      "Got it, reviewing that for you.",
-    ];
-    const ack = acknowledgments[Math.floor(Math.random() * acknowledgments.length)];
-    setSpeakingSentence(ack);
-    updateVoiceState("speaking");
-    voiceTtsRef.current.speakSentence(ack);
-
-    // Concurrently trigger fast streaming chat
+    // Directly process and reply with the clinical solution without filler or delay statements
+    updateVoiceState("thinking");
     handleSendMessage(cleanFinal, { isFromVoiceTurn: true });
   };
 
@@ -892,10 +970,7 @@ export function ChatContainer({
       accumulatedTranscriptRef.current = "";
       latestInterimRef.current = "";
       setInterimTranscript("");
-
-      if (!options.isFromVoiceTurn) {
-        updateVoiceState("thinking");
-      }
+      updateVoiceState("thinking");
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -1291,6 +1366,8 @@ export function ChatContainer({
             voiceTtsRef.current?.updateOptions({ vexylStyle: style });
           }}
           micStream={micStream}
+          isMuted={isMicMuted}
+          onToggleMute={toggleMuteMic}
         />
       )}
 

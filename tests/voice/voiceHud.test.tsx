@@ -20,6 +20,8 @@ describe("VoiceHUD - Talkative Voice Overlay & Dynamic Visualizer", () => {
     vexylStyle: "warm" as const,
     onChangeVexylStyle: vi.fn(),
     micStream: null,
+    isMuted: false,
+    onToggleMute: vi.fn(),
   };
 
   beforeEach(() => {
@@ -144,5 +146,32 @@ describe("VoiceHUD - Talkative Voice Overlay & Dynamic Visualizer", () => {
     const select = screen.getByLabelText("Select Bedside Tone");
     fireEvent.change(select, { target: { value: "formal" } });
     expect(onChangeStyle).toHaveBeenCalledWith("formal");
+  });
+
+  it("renders Mute Mic button and triggers onToggleMute on click", () => {
+    const onToggleMute = vi.fn();
+    render(<VoiceHUD {...defaultProps} isMuted={false} onToggleMute={onToggleMute} />);
+
+    const muteBtn = screen.getByRole("button", { name: /mute microphone/i });
+    expect(muteBtn).toBeInTheDocument();
+    expect(screen.getByText("Mute Mic")).toBeInTheDocument();
+
+    fireEvent.click(muteBtn);
+    expect(onToggleMute).toHaveBeenCalledTimes(1);
+  });
+
+  it("displays Unmute Mic and muted status banner when isMuted is true", () => {
+    const onToggleMute = vi.fn();
+    render(<VoiceHUD {...defaultProps} isMuted={true} onToggleMute={onToggleMute} />);
+
+    expect(screen.getByText("Microphone Muted (Tap Unmute to speak)")).toBeInTheDocument();
+    expect(screen.getByText("Microphone is muted. Tap Unmute to speak...")).toBeInTheDocument();
+
+    const unmuteBtn = screen.getByRole("button", { name: /unmute microphone/i });
+    expect(unmuteBtn).toBeInTheDocument();
+    expect(screen.getByText("Unmute Mic")).toBeInTheDocument();
+
+    fireEvent.click(unmuteBtn);
+    expect(onToggleMute).toHaveBeenCalledTimes(1);
   });
 });

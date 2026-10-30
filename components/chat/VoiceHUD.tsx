@@ -39,6 +39,8 @@ interface VoiceHUDProps {
   vexylStyle?: "warm" | "default" | "formal";
   onChangeVexylStyle?: (style: "warm" | "default" | "formal") => void;
   micStream?: MediaStream | null;
+  isMuted?: boolean;
+  onToggleMute?: () => void;
 }
 
 export function VoiceHUD({
@@ -58,6 +60,8 @@ export function VoiceHUD({
   vexylStyle = "warm",
   onChangeVexylStyle,
   micStream,
+  isMuted = false,
+  onToggleMute,
 }: VoiceHUDProps) {
   const isSpeaking = state === "speaking";
   const isListening = state === "listening";
@@ -71,8 +75,8 @@ export function VoiceHUD({
   const animationFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // If not listening, reset to flat baseline with zero movement
-    if (state !== "listening") {
+    // If microphone is muted or not actively listening, keep waveform flat with zero movement
+    if (isMuted || state !== "listening") {
       setFrequencies([0, 0, 0, 0, 0, 0, 0, 0, 0]);
       setIsHearingSound(false);
       return;
@@ -150,7 +154,7 @@ export function VoiceHUD({
         } catch {}
       }
     };
-  }, [micStream, state, interimTranscript]);
+  }, [micStream, state, interimTranscript, isMuted]);
 
   return (
     <div
@@ -158,12 +162,15 @@ export function VoiceHUD({
       role="region"
       aria-label="Talkative Voice Mode Overlay"
     >
-      <div className="bg-white/95 dark:bg-slate-900/95 border border-emerald-500/30 rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl relative space-y-6">
-        {/* Top Header: Title, Status & Controls */}
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+      <div className="bg-white/95 dark:bg-slate-900/95 border border-emerald-500/30 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl relative space-y-5">
+        {/* Top Header: Title, Tone & Close */}
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3.5">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-emerald-600 rounded-xl text-white shadow-xs">
-              <Mic className="w-4 h-4" />
+            <div className={cn(
+              "p-2 rounded-xl text-white transition-colors shadow-xs",
+              isMuted ? "bg-amber-500" : "bg-emerald-600"
+            )}>
+              {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </div>
             <div>
               <h3 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight">
@@ -202,11 +209,11 @@ export function VoiceHUD({
         </div>
 
         {/* Center Stage: Interactive Voice Wave Visualizer */}
-        <div className="flex flex-col items-center justify-center py-4 space-y-4">
+        <div className="flex flex-col items-center justify-center py-2 space-y-3.5">
           {/* Dynamic Audio Waveform */}
-          <div className="relative flex items-center justify-center h-24 w-full">
+          <div className="relative flex items-center justify-center h-20 w-full">
             {/* Ambient Ripple Aura when hearing user speech */}
-            {isListening && isHearingSound && (
+            {!isMuted && isListening && isHearingSound && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <span className="w-24 h-24 rounded-full bg-emerald-500/15 animate-ping duration-1000" />
                 <span className="w-32 h-32 rounded-full bg-emerald-500/10 animate-pulse duration-700" />
@@ -223,30 +230,29 @@ export function VoiceHUD({
             {/* Thinking Orbital Glow */}
             {isThinking && (
               <div className="flex flex-col items-center justify-center gap-2">
-                <div className="w-14 h-14 rounded-full border-3 border-amber-500/20 border-t-amber-500 animate-spin flex items-center justify-center shadow-lg">
-                  <Sparkles className="w-6 h-6 text-amber-500 animate-pulse" />
+                <div className="w-12 h-12 rounded-full border-3 border-amber-500/20 border-t-amber-500 animate-spin flex items-center justify-center shadow-lg">
+                  <Sparkles className="w-5 h-5 text-amber-500 animate-pulse" />
                 </div>
               </div>
             )}
 
-            {/* Waveform Equalizer Bars (Responsive to real mic volume / speech) */}
+            {/* Waveform Equalizer Bars */}
             {!isThinking && (
-              <div className="flex items-center gap-1.5 sm:gap-2 h-16 px-4 z-10">
+              <div className="flex items-center gap-1.5 sm:gap-2 h-14 px-4 z-10">
                 {frequencies.map((band, idx) => {
-                  let barHeight = 4; // Flat baseline when silent
+                  let barHeight = 4; // Flat baseline when silent or muted
 
-                  if (isListening) {
+                  if (isMuted) {
+                    barHeight = 4;
+                  } else if (isListening) {
                     if (isHearingSound) {
-                      // Dynamically scale wave height proportional to user speech volume
-                      const normalized = Math.max(8, Math.min(60, Math.round((band / 255) * 60)));
+                      const normalized = Math.max(8, Math.min(52, Math.round((band / 255) * 52)));
                       barHeight = normalized;
                     } else {
-                      // Silent: completely flat with ZERO movement
                       barHeight = 4;
                     }
                   } else if (isSpeaking) {
-                    // Assistant speech animation rhythm
-                    const offsets = [16, 32, 48, 56, 44, 52, 38, 22, 14];
+                    const offsets = [16, 28, 44, 50, 40, 46, 34, 20, 12];
                     barHeight = offsets[idx % offsets.length];
                   }
 
@@ -256,7 +262,9 @@ export function VoiceHUD({
                       style={{ height: `${barHeight}px` }}
                       className={cn(
                         "w-1.5 sm:w-2 rounded-full transition-all duration-75",
-                        isListening
+                        isMuted
+                          ? "bg-amber-300 dark:bg-amber-900/60"
+                          : isListening
                           ? isHearingSound
                             ? "bg-emerald-500 dark:bg-emerald-400 shadow-xs shadow-emerald-500/50"
                             : "bg-slate-300 dark:bg-slate-700"
@@ -273,50 +281,51 @@ export function VoiceHUD({
 
           {/* Current State Status Pill */}
           <div>
-            {isListening && isHearingSound && (
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-sm animate-pulse">
+            {isMuted ? (
+              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 shadow-xs">
+                <MicOff className="w-3.5 h-3.5 text-amber-600" />
+                <span>Microphone Muted (Tap Unmute to speak)</span>
+              </span>
+            ) : isListening && isHearingSound ? (
+              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs animate-pulse">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping" />
                 <span>Hearing your voice...</span>
               </span>
-            )}
-
-            {isListening && !isHearingSound && (
+            ) : isListening && !isHearingSound ? (
               <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 <span>Listening for your voice (speak anytime)...</span>
               </span>
-            )}
-
-            {isThinking && (
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 shadow-sm">
+            ) : isThinking ? (
+              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 shadow-xs">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
                 <span>Consulting clinical guidelines...</span>
               </span>
-            )}
-
-            {isSpeaking && (
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-800 shadow-sm">
+            ) : isSpeaking ? (
+              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-800 shadow-xs">
                 <Volume2 className="w-3.5 h-3.5 text-blue-600 animate-bounce" />
                 <span>Assistant Speaking (tap below to interrupt)</span>
               </span>
-            )}
-
-            {isConfirming && !isSpeaking && !isListening && !isThinking && (
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-800 shadow-sm">
+            ) : isConfirming ? (
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-800 shadow-xs">
                 <AlertCircle className="w-3.5 h-3.5 text-purple-600" />
                 <span>Awaiting spoken confirmation (&ldquo;Yes&rdquo; / &ldquo;No&rdquo;)</span>
               </span>
-            )}
+            ) : null}
           </div>
         </div>
 
         {/* Live Audio Transcript Display Box */}
-        <div className="bg-slate-50 dark:bg-slate-950/80 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 text-xs sm:text-sm space-y-2.5 max-h-36 overflow-y-auto shadow-inner">
+        <div className="bg-slate-50 dark:bg-slate-950/80 rounded-2xl p-3.5 border border-slate-200/80 dark:border-slate-800 text-xs sm:text-sm space-y-2 max-h-32 overflow-y-auto shadow-inner">
           {/* User speech caption */}
           <div className="flex items-start gap-2">
             <span className="text-slate-400 dark:text-slate-500 font-semibold shrink-0 select-none">You:</span>
             <p className="text-slate-800 dark:text-slate-200 break-words leading-relaxed font-medium">
-              {interimTranscript ? (
+              {isMuted ? (
+                <span className="text-amber-600 dark:text-amber-400 italic font-normal">
+                  Microphone is muted. Tap Unmute to speak...
+                </span>
+              ) : interimTranscript ? (
                 <span className="text-emerald-700 dark:text-emerald-400 italic">
                   {interimTranscript} ...
                 </span>
@@ -345,7 +354,7 @@ export function VoiceHUD({
 
         {/* Action Confirmation Modal Card (when booking or cancellation is detected) */}
         {pendingAction && (
-          <div className="p-4 bg-emerald-50/90 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 rounded-2xl space-y-3 animate-in fade-in slide-in-from-bottom-2 shadow-md">
+          <div className="p-3.5 bg-emerald-50/90 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 rounded-2xl space-y-2.5 animate-in fade-in slide-in-from-bottom-2 shadow-xs">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -358,7 +367,7 @@ export function VoiceHUD({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/40">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-emerald-100 dark:border-emerald-900/40">
               <div className="flex items-center gap-2">
                 <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span className="font-semibold truncate">{pendingAction.doctor.name}</span>
@@ -394,7 +403,7 @@ export function VoiceHUD({
                   type="button"
                   onClick={onConfirmAction}
                   disabled={actionExecuting}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
                 >
                   {actionExecuting ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -408,17 +417,27 @@ export function VoiceHUD({
           </div>
         )}
 
-        {/* Bottom Control Actions */}
-        <div className="flex items-center justify-between pt-2">
-          {/* Left: Barge-In / Interrupt Button */}
-          {isSpeaking ? (
+        {/* Bottom Control Actions: Mute / Interrupt / Switch to Text */}
+        <div className="flex items-center justify-between pt-1 gap-2">
+          {/* Mute / Unmute Microphone Button */}
+          {onToggleMute ? (
             <button
               type="button"
-              onClick={onInterrupt}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 transition-colors shadow-2xs"
+              onClick={onToggleMute}
+              className={cn(
+                "flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs",
+                isMuted
+                  ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/25"
+                  : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
+              )}
+              aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
             >
-              <VolumeX className="w-4 h-4" />
-              <span>Interrupt & Speak</span>
+              {isMuted ? (
+                <MicOff className="w-4 h-4 text-white" />
+              ) : (
+                <Mic className="w-4 h-4 text-emerald-600" />
+              )}
+              <span>{isMuted ? "Unmute Mic" : "Mute Mic"}</span>
             </button>
           ) : (
             <div className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
@@ -427,14 +446,26 @@ export function VoiceHUD({
             </div>
           )}
 
+          {/* Center: Barge-In / Interrupt Button when assistant speaks */}
+          {isSpeaking && (
+            <button
+              type="button"
+              onClick={onInterrupt}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 transition-colors shadow-2xs"
+            >
+              <VolumeX className="w-4 h-4" />
+              <span>Interrupt & Speak</span>
+            </button>
+          )}
+
           {/* Right: Switch back to text chat */}
           <button
             type="button"
             onClick={onExitVoiceMode}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shadow-xs ml-auto"
           >
             <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Switch to Text Chat</span>
+            <span>Switch to Text</span>
           </button>
         </div>
       </div>
