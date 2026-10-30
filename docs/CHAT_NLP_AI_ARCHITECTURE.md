@@ -1680,3 +1680,73 @@ Run all tests via:
 npm test -- --run
 npm run typecheck
 ```
+
+---
+
+## 12. Voice-Driven Conversational Layer ("Talkative Mode") & Spoken Action Automation
+
+### 12.1 Overview & Architectural Principles
+The voice layer provides a hands-free, humanized conversational experience sitting directly on top of the existing chat, NLP, RAG, and appointment systems:
+1. **Single Source of Truth:** Voice is strictly an input/output layer. Audio is transcribed client-side and routed through the exact same `/api/chat` and `/api/extract` endpoints, adhering to the 4,000-character cap, deterministic crisis triage, domain scope restrictions, and prompt injection defense.
+2. **Zero Audio Retention & Maximum Privacy:** Speech recognition (STT) and speech synthesis (TTS) execute via native browser Web Speech API. Audio streams are immediately released; no raw audio is transmitted to external servers or persisted in the database.
+3. **Streaming Sentence-Level TTS:** Streaming SSE tokens from `/api/chat` are buffered into sentence-level chunks and dispatched to `SpeechSynthesis` incrementally, ensuring immediate spoken playback without waiting for the full model stream.
+4. **Non-Negotiable Unchunked Emergency Speech:** When crisis triggers (988/911) are detected, speech is delivered as a complete, unchunked, high-priority emergency advisory.
+5. **Two-Phase Action Confirmation Gate:** Irreversible actions (appointment booking, rescheduling, cancellation) require explicit user confirmation (spoken "Yes" or clicked button) after displaying parsed details (physician, date, time, mode) before calling appointment APIs.
+6. **Mandatory Spoken Medical Disclaimer:** Spoken at least once per voice session and repeated on clinical/symptom triage queries.
+7. **Barge-In Interruption:** When the user speaks or clicks "Interrupt", audio synthesis is instantly canceled and the assistant switches back to listening.
+
+### 12.2 End-to-End Voice Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Patient (Spoken Voice)
+    participant HUD as VoiceHUD / Web Speech STT
+    participant Chat as ChatContainer
+    participant API as /api/chat (SSE)
+    participant NLP as /api/extract & voiceActions
+    participant TTS as VoiceTtsManager (Web Speech TTS)
+    participant ApptAPI as /api/appointments/*
+
+    User->>HUD: Speaks ("Book with cardiologist next Tuesday afternoon")
+    HUD->>Chat: Live interim transcript shown in HUD
+    HUD->>Chat: Final transcript captured on silence/pause
+    par Route to Existing Chat Pipeline
+        Chat->>API: POST /api/chat { messages, isVoiceMode: true }
+        API-->>Chat: SSE stream tokens (humanized phrasing)
+        Chat->>TTS: Buffer tokens into sentence chunks -> speak immediately
+        TTS-->>User: Spoken audio playback while streaming continues
+    and Parallel Entity Extraction
+        Chat->>NLP: POST /api/extract { text } & detectVoiceAction()
+        NLP-->>Chat: Parsed Action: { type: "book", doctor: "Dr. Sarah Lin", time: "Tuesday 2 PM" }
+    end
+    Chat->>HUD: Display Confirmation Card with parsed details
+    Chat->>TTS: Speak confirmation prompt ("I can book that for Tuesday 2 PM. Confirm?")
+    User->>HUD: Speaks confirmation ("Yes, please confirm")
+    HUD->>Chat: Affirmative voice confirmation detected
+    Chat->>ApptAPI: POST /api/appointments/book { doctorId, startTime, endTime }
+    ApptAPI-->>Chat: HTTP 200 Booking Confirmed
+    Chat->>TTS: Speak confirmation summary aloud
+    TTS-->>User: "Confirmed! Your appointment with Dr. Sarah Lin has been booked."
+```
+
+### 12.3 Dual-Engine Neural Voice Layer (VEXYL-TTS Integration)
+
+To provide humanized, natural spoken healthcare presence beyond synthetic browser robotic voices, the voice system integrates the open-source **VEXYL-TTS** neural engine (`vexyl-ai/vexyl-tts` built on `ai4bharat/indic-parler-tts`):
+
+1. **Multilingual Regional Support:**
+   - Supports 22 Indian regional languages (`hi-IN`, `ta-IN`, `te-IN`, `ml-IN`, `kn-IN`, `bn-IN`, `mr-IN`, `gu-IN`, `pa-IN`, `ur-IN`, etc.) and Indian English (`en-IN`).
+   - 69 named voices configured per language.
+2. **Healthcare-Tuned Empathetic Tones:**
+   - `warm`: Reassuring, empathetic bedside presence with slightly slower pace for clarity and patient comfort (default).
+   - `default`: Calm, clear, and professional tone with moderate pace.
+   - `formal`: Clinical, neutral physician tone with precise medical diction.
+3. **Dual Protocol Support:**
+   - **WebSocket (Zero Latency Streaming):** Low-latency duplex communication at `ws://127.0.0.1:8092` with structured synthesis payloads (`synthesize`, `audio`, `ready`).
+   - **REST Batch Proxy (`/api/tts`):** Server-side Next.js route providing rate-limited batch synthesis with fallback handling.
+4. **Resilient Zero-Config Fallback:**
+   - On initialization, `VoiceTtsManager` queries `/health` on the local VEXYL server.
+   - If the server is offline or fails mid-stream, `VoiceTtsManager` instantly and silently falls back to native browser `window.speechSynthesis` (Web Speech API).
+   - The HUD displays an active badge indicating whether `VEXYL Neural` or `Browser Voice` is active, allowing live tone and language selection.
+
+

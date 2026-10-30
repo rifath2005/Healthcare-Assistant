@@ -209,5 +209,12 @@ describe("Chat Interface & UI Component States", () => {
         ).toBeInTheDocument();
       });
     });
+
+    it("renders the Voice Mode toggle button in the header bar", () => {
+      render(<ChatContainer />);
+
+      const voiceButtons = screen.getAllByRole("button", { name: /voice mode/i });
+      expect(voiceButtons.length).toBeGreaterThan(0);
+    });
   });
 });

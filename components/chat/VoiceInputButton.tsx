@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -27,22 +27,14 @@ export function VoiceInputButton({ onTranscript, disabled }: VoiceInputButtonPro
 
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const clearSilenceTimeout = () => {
+  const clearSilenceTimeout = useCallback(() => {
     if (silenceTimeoutRef.current) {
       clearTimeout(silenceTimeoutRef.current);
       silenceTimeoutRef.current = null;
     }
-  };
+  }, []);
 
-  const resetSilenceTimeout = () => {
-    clearSilenceTimeout();
-    // Wait for 5 seconds of silence (mute state) before automatically turning off mic
-    silenceTimeoutRef.current = setTimeout(() => {
-      stopListening();
-    }, 5000);
-  };
-
-  const stopListening = () => {
+  const stopListening = useCallback(() => {
     clearSilenceTimeout();
     if (recognitionRef.current) {
       try {
@@ -51,7 +43,15 @@ export function VoiceInputButton({ onTranscript, disabled }: VoiceInputButtonPro
       recognitionRef.current = null;
     }
     setIsListening(false);
-  };
+  }, [clearSilenceTimeout]);
+
+  const resetSilenceTimeout = useCallback(() => {
+    clearSilenceTimeout();
+    // Wait for 5 seconds of silence (mute state) before automatically turning off mic
+    silenceTimeoutRef.current = setTimeout(() => {
+      stopListening();
+    }, 5000);
+  }, [clearSilenceTimeout, stopListening]);
 
   const startListening = async () => {
     const SpeechRecognition =
@@ -124,8 +124,8 @@ export function VoiceInputButton({ onTranscript, disabled }: VoiceInputButtonPro
 
         if (event.error === "network") {
           toast.error(
-            "Speech recognition network error: Google Speech Services was unreachable. If you have Brevity or adblockers active, please disable them for localhost:3001.",
-            { duration: 7000 }
+            "Speech recognition network error: speech services unreachable. Please check your internet connection.",
+            { duration: 5000 }
           );
         } else if (event.error === "not-allowed" || event.error === "service-not-allowed") {
           toast.error("Microphone permission was denied. Please enable microphone permissions in your browser address bar.");
@@ -165,7 +165,7 @@ export function VoiceInputButton({ onTranscript, disabled }: VoiceInputButtonPro
     return () => {
       stopListening();
     };
-  }, []);
+  }, [stopListening]);
 
   return (
     <button

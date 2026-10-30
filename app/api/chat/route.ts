@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON request body" }, { status: 400 });
     }
 
-    const { messages, conversationId, isEmpathetic } = body || {};
+    const { messages, conversationId, isEmpathetic, isVoiceMode } = body || {};
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
@@ -248,7 +248,7 @@ export async function POST(req: NextRequest) {
 
     for (const candidateModel of modelsToTry) {
       try {
-        const model = getChatModel({ isEmpathetic, modelName: candidateModel });
+        const model = getChatModel({ isEmpathetic, isVoiceMode, modelName: candidateModel });
 
         try {
           const chatSession = model.startChat({ history: validHistory });
@@ -276,7 +276,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: isQuota
-            ? "Daily Google Gemini free-tier quota is currently exhausted. Please try again later or configure a paid/alternative API key."
+            ? "The clinical assistant is currently experiencing high demand. Please try again in a few moments."
             : "Unable to generate healthcare response. Please try again in a moment.",
         },
         { status: isQuota ? 429 : 500 }

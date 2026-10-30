@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { SendHorizontal, Loader2 } from "lucide-react";
+import { SendHorizontal, Loader2, Radio } from "lucide-react";
 import { VoiceInputButton } from "./VoiceInputButton";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,8 @@ interface ChatInputProps {
   isLoading: boolean;
   disabled?: boolean;
   placeholder?: string;
+  isVoiceMode?: boolean;
+  onToggleVoiceMode?: () => void;
 }
 
 const MAX_CHARACTERS = 2000;
@@ -19,6 +21,8 @@ export function ChatInput({
   isLoading,
   disabled,
   placeholder = "Describe your symptoms or wellness questions...",
+  isVoiceMode = false,
+  onToggleVoiceMode,
 }: ChatInputProps) {
   const [content, setContent] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -103,6 +107,23 @@ export function ChatInput({
             onTranscript={handleVoiceTranscript}
             disabled={disabled || isLoading}
           />
+          {onToggleVoiceMode && (
+            <button
+              type="button"
+              onClick={onToggleVoiceMode}
+              disabled={disabled || isLoading}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all",
+                isVoiceMode
+                  ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                  : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:text-emerald-600"
+              )}
+              title={isVoiceMode ? "Switch to Text Mode" : "Switch to Talkative Spoken Voice Mode"}
+            >
+              <Radio className={cn("w-3.5 h-3.5", isVoiceMode && "animate-pulse")} />
+              <span className="hidden sm:inline">{isVoiceMode ? "Voice Active" : "Voice Mode"}</span>
+            </button>
+          )}
           <span className="text-[11px] text-slate-400 dark:text-slate-500 select-none">
             {content.length}/{MAX_CHARACTERS}
           </span>

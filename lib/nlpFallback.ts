@@ -1,5 +1,11 @@
 export interface ExtractedEntities {
-  intent: "symptom_inquiry" | "appointment_booking" | "mental_health_support" | "general_faq";
+  intent:
+    | "symptom_inquiry"
+    | "appointment_booking"
+    | "appointment_reschedule"
+    | "appointment_cancel"
+    | "mental_health_support"
+    | "general_faq";
   symptoms: Array<{
     name: string;
     duration: string;
@@ -31,6 +37,8 @@ const DURATION_REGEX = /\b(for\s+)?(\d+\s+(days?|weeks?|months?|hours?)|yesterda
 const SEVERITY_HIGH = /\b(severe|intense|unbearable|terrible|excruciating|very\s+bad)\b/i;
 const SEVERITY_MILD = /\b(mild|slight|little|minor|manageable)\b/i;
 
+const RESCHEDULE_KEYWORDS = /\b(reschedule|change\s+(my\s+)?(time|appointment|booking)|move\s+(my\s+)?appointment)\b/i;
+const CANCEL_KEYWORDS = /\b(cancel\s+(my\s+)?(appointment|booking|consultation)|delete\s+(my\s+)?appointment|drop\s+appointment)\b/i;
 const BOOKING_KEYWORDS = /\b(book|schedule|appointment|consultation|doctor|see\s+a\s+physician|reserve\s+a\s+slot)\b/i;
 const MENTAL_HEALTH_KEYWORDS = /\b(anxiety|panic|depress(ed|ion)|stressed?|overwhelmed|hopeless|sad|grief|lonely)\b/i;
 
@@ -42,7 +50,11 @@ export function extractLocalEntities(text: string): ExtractedEntities {
 
   // 1. Detect Intent
   let intent: ExtractedEntities["intent"] = "general_faq";
-  if (BOOKING_KEYWORDS.test(lower)) {
+  if (CANCEL_KEYWORDS.test(lower)) {
+    intent = "appointment_cancel";
+  } else if (RESCHEDULE_KEYWORDS.test(lower)) {
+    intent = "appointment_reschedule";
+  } else if (BOOKING_KEYWORDS.test(lower)) {
     intent = "appointment_booking";
   } else if (MENTAL_HEALTH_KEYWORDS.test(lower)) {
     intent = "mental_health_support";

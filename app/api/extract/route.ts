@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 const EXTRACTION_PROMPT = `
 You are a clinical NLP extractor. Analyze the user's healthcare input and return ONLY a valid JSON object strictly conforming to this schema without markdown fences:
 {
-  "intent": "symptom_inquiry" | "appointment_booking" | "mental_health_support" | "general_faq",
+  "intent": "symptom_inquiry" | "appointment_booking" | "appointment_reschedule" | "appointment_cancel" | "mental_health_support" | "general_faq",
   "symptoms": [
     {
       "name": "string (standardized symptom name)",

@@ -40,6 +40,19 @@ The user is experiencing elevated stress, anxiety, or emotional distress.
 - Maintain a warm, stabilizing, and reassuring presence without dismissing their physical or mental discomfort.
 `;
 
+export const VOICE_MODE_SYSTEM_INSTRUCTION = `
+SPOKEN VOICE CONVERSATION MODE ACTIVE ("TALKATIVE MODE"):
+The user is conversing with you via real-time spoken audio.
+1. Spoken Conversational Cadence: Use warm, natural, humanized phrasing with concise sentences that sound natural when read aloud. Keep sentences relatively short and direct.
+2. Natural Verbal Acknowledgments: Start replies naturally when appropriate with brief conversational acknowledgments (e.g., "Certainly, let me check that for you," "I understand," "Sure thing," "Let's take a look at that").
+3. Spoken Accessibility: Strictly avoid dense markdown tables, long bulleted lists, complex URLs, or parenthetical citation numbers. Keep explanations spoken-friendly.
+4. Non-Negotiable Medical Grounding & Emergency Safety:
+   - All medical accuracy, clinical boundaries, and symptom guidance remain strictly enforced.
+   - For any acute emergency or crisis, deliver 988 Lifeline and 911 Emergency instructions immediately and clearly.
+5. Explicit Confirmation for Voice Actions:
+   - When the user asks to book, reschedule, or cancel a doctor appointment, summarize the parsed details (doctor, date, time) and explicitly ask for confirmation before confirming (e.g., "I can schedule that appointment with Dr. Sarah Lin for Tuesday at 2:00 PM. Would you like me to confirm this for you?").
+`;
+
 const SAFETY_SETTINGS = [
   {
     category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -75,6 +88,7 @@ export function getGeminiClient(): GoogleGenerativeAI {
 export interface ModelOptions {
   modelName?: string;
   isEmpathetic?: boolean;
+  isVoiceMode?: boolean;
   temperature?: number;
   systemInstructionAddendum?: string;
 }
@@ -96,6 +110,9 @@ export function getChatModel(options: ModelOptions = {}): GenerativeModel {
   let systemInstruction = BASE_HEALTHCARE_SYSTEM_INSTRUCTION;
   if (options.isEmpathetic) {
     systemInstruction += "\n" + EMPATHETIC_COUNSELING_ADDENDUM;
+  }
+  if (options.isVoiceMode) {
+    systemInstruction += "\n" + VOICE_MODE_SYSTEM_INSTRUCTION;
   }
   if (options.systemInstructionAddendum) {
     systemInstruction += "\n" + options.systemInstructionAddendum;

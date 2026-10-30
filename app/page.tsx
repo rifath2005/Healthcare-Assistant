@@ -14,7 +14,6 @@ import {
   HeartPulse,
   Calendar,
   Settings,
-  ShieldCheck,
   LogIn,
   LogOut,
   User,
@@ -26,7 +25,6 @@ export default function HomePage() {
   const router = useRouter();
   const [user, setUser] = useState<any | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -55,14 +53,6 @@ export default function HomePage() {
       }
       setUser(user);
       setLoadingUser(false);
-      supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single()
-        .then(({ data }) => {
-          if (data?.role === "admin") setIsAdmin(true);
-        });
     });
 
     const {
@@ -87,7 +77,6 @@ export default function HomePage() {
     const supabase = createClient();
     await supabase.auth.signOut();
     setUser(null);
-    setIsAdmin(false);
     setActiveConversationId(null);
     toast.success("Signed out successfully");
     router.push("/login");
@@ -156,16 +145,6 @@ export default function HomePage() {
                 <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span className="hidden md:inline">Sources & Policy</span>
               </Link>
-
-              {isAdmin && (
-                <Link
-                  href="/admin/doctors"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-xs font-bold transition-colors"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                  <span className="hidden sm:inline">Admin Panel</span>
-                </Link>
-              )}
 
               <Link
                 href="/settings"
