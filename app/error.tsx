@@ -31,7 +31,7 @@ export default function ErrorBoundary({
           </p>
         </div>
 
-        {error.message && (
+        {process.env.NODE_ENV === "development" && error.message && (
           <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-left text-xs font-mono text-slate-600 dark:text-slate-400 break-words">
             {error.message}
           </div>
