@@ -94,10 +94,10 @@ export interface ModelOptions {
 }
 
 export const FALLBACK_MODELS = [
+  "gemini-flash-lite-latest",
   "gemini-3.1-flash-lite",
   "gemini-3.5-flash-lite",
-  "gemini-flash-lite-latest",
-  "gemini-3.5-flash",
+  "gemini-3.8-flash",
 ];
 
 /**
@@ -118,7 +118,7 @@ export function getChatModel(options: ModelOptions = {}): GenerativeModel {
     systemInstruction += "\n" + options.systemInstructionAddendum;
   }
 
-  const modelName = options.modelName || process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+  const modelName = options.modelName || process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
 
   return client.getGenerativeModel({
     model: modelName,

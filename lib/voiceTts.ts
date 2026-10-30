@@ -194,6 +194,26 @@ export class VoiceTtsManager {
   public feedStreamToken(token: string) {
     this.tokenBuffer += token;
 
+    // For the initial opening sentence, split on first clause (comma, colon, semicolon)
+    // after 4 words to start voice playback within milliseconds instead of waiting for a period!
+    if (!this.isSpeaking && this.queue.length === 0) {
+      const clauseMatch = /([,;:—]+[\s\n]+)/.exec(this.tokenBuffer);
+      if (clauseMatch) {
+        const candidate = this.tokenBuffer.slice(0, clauseMatch.index).trim();
+        const wordCount = candidate.split(/\s+/).length;
+        if (wordCount >= 4) {
+          const splitIdx = clauseMatch.index + clauseMatch[0].length;
+          const clauseText = this.tokenBuffer.slice(0, splitIdx).trim();
+          this.tokenBuffer = this.tokenBuffer.slice(splitIdx);
+          const cleaned = VoiceTtsManager.cleanTextForSpeech(clauseText);
+          if (cleaned.length > 2) {
+            this.queueUtterance(cleaned);
+            return;
+          }
+        }
+      }
+    }
+
     // Sentence splitting boundary regex:
     // Matches '.', '!', or '?' followed by a space or newline
     const sentenceBoundaryRegex = /([.!?]+[\s\n]+)/g;
@@ -358,6 +378,14 @@ export class VoiceTtsManager {
         return;
       }
 
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        if (window.speechSynthesis.paused) {
+          try {
+            window.speechSynthesis.resume();
+          } catch {}
+        }
+      }
+
       const utterance = new UtteranceConstructor(nextSentence);
       utterance.rate = this.options.rate || 1.0;
       utterance.pitch = this.options.pitch || 1.0;
@@ -365,6 +393,18 @@ export class VoiceTtsManager {
 
       if (this.options.voice) {
         utterance.voice = this.options.voice;
+      } else if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        try {
+          const voices = window.speechSynthesis.getVoices();
+          if (voices && voices.length > 0) {
+            const naturalVoice =
+              voices.find((v) => v.lang.startsWith("en") && (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Online"))) ||
+              voices.find((v) => v.lang.startsWith("en"));
+            if (naturalVoice) {
+              utterance.voice = naturalVoice;
+            }
+          }
+        } catch {}
       }
 
       utterance.onstart = () => {

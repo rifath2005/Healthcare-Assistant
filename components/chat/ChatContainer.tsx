@@ -119,6 +119,9 @@ export function ChatContainer({
     voiceTtsRef.current = new VoiceTtsManager();
   }
   const recognitionRef = useRef<any>(null);
+  const speechSilenceTimerRef = useRef<any>(null);
+  const latestInterimRef = useRef<string>("");
+  const dispatchVoiceTurnRef = useRef<(text: string) => void>(() => {});
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -330,10 +333,34 @@ export function ChatContainer({
         }
 
         if (interim) {
+          latestInterimRef.current = interim;
           setInterimTranscript(interim);
+
+          // Adaptive silence timer (VAD): If the user pauses speaking for 750ms,
+          // auto-commit their speech immediately without waiting 3-4s for browser isFinal!
+          if (speechSilenceTimerRef.current) {
+            clearTimeout(speechSilenceTimerRef.current);
+          }
+          speechSilenceTimerRef.current = setTimeout(() => {
+            const spokenText = latestInterimRef.current.trim();
+            if (spokenText.length >= 2 && isVoiceModeRef.current && voiceStateRef.current === "listening") {
+              latestInterimRef.current = "";
+              setFinalTranscript(spokenText);
+              setInterimTranscript("");
+              try {
+                recognition.stop();
+              } catch {}
+              dispatchVoiceTurnRef.current(spokenText);
+            }
+          }, 750);
         }
 
         if (final.trim()) {
+          if (speechSilenceTimerRef.current) {
+            clearTimeout(speechSilenceTimerRef.current);
+            speechSilenceTimerRef.current = null;
+          }
+          latestInterimRef.current = "";
           const cleanFinal = final.trim();
           setFinalTranscript(cleanFinal);
           setInterimTranscript("");
@@ -342,20 +369,7 @@ export function ChatContainer({
             recognition.stop();
           } catch {}
 
-          // Check if pending action is awaiting user confirmation
-          const currentPending = pendingVoiceActionRef.current;
-          if (currentPending) {
-            if (isAffirmativeConfirmation(cleanFinal)) {
-              executeConfirmedAction(currentPending);
-              return;
-            } else if (isNegativeDecline(cleanFinal)) {
-              cancelPendingAction();
-              return;
-            }
-          }
-
-          // Normal conversational turn submission
-          handleSendMessage(cleanFinal);
+          dispatchVoiceTurnRef.current(cleanFinal);
         }
       };
 
@@ -473,6 +487,12 @@ export function ChatContainer({
     setPendingVoiceAction(null);
     pendingVoiceActionRef.current = null;
 
+    if (speechSilenceTimerRef.current) {
+      clearTimeout(speechSilenceTimerRef.current);
+      speechSilenceTimerRef.current = null;
+    }
+    latestInterimRef.current = "";
+
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
@@ -495,6 +515,11 @@ export function ChatContainer({
   };
 
   const handleInterrupt = () => {
+    if (speechSilenceTimerRef.current) {
+      clearTimeout(speechSilenceTimerRef.current);
+      speechSilenceTimerRef.current = null;
+    }
+    latestInterimRef.current = "";
     voiceTtsRef.current.stop();
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -660,8 +685,78 @@ export function ChatContainer({
     toast.success("Chat history cleared");
   };
 
+  // --- Instant Voice Turn Dispatcher (< 80ms First Response) ---
+  const dispatchVoiceTurn = (spokenText: string) => {
+    const cleanFinal = spokenText.trim();
+    if (!cleanFinal) return;
+
+    // 1. Check if pending action is awaiting user confirmation
+    const currentPending = pendingVoiceActionRef.current;
+    if (currentPending) {
+      if (isAffirmativeConfirmation(cleanFinal)) {
+        executeConfirmedAction(currentPending);
+        return;
+      } else if (isNegativeDecline(cleanFinal)) {
+        cancelPendingAction();
+        return;
+      }
+    }
+
+    // 2. Check if user speech expresses an appointment action
+    const detectedAction = detectVoiceAction(cleanFinal, userAppointmentsRef.current);
+    if (detectedAction) {
+      setPendingVoiceAction(detectedAction);
+      pendingVoiceActionRef.current = detectedAction;
+      setVoiceState("awaiting_confirmation");
+
+      // Instantly speak the confirmation prompt (< 50ms)!
+      voiceTtsRef.current.speakConfirmationPrompt(detectedAction.spokenPrompt, () => {
+        if (isVoiceModeRef.current) {
+          startListeningLoop();
+        }
+      });
+
+      // Post messages to history
+      const userMsg: Message = {
+        id: `usr_${Date.now()}`,
+        role: "user",
+        content: cleanFinal,
+        created_at: new Date().toISOString(),
+      };
+      const assistantMsg: Message = {
+        id: `ast_${Date.now()}`,
+        role: "assistant",
+        content: detectedAction.spokenPrompt,
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+      return;
+    }
+
+    // 3. For general clinical queries:
+    // Speak an immediate warm verbal acknowledgment so the user gets an INSTANT voice reply in < 80ms!
+    const acknowledgments = [
+      "Let me check that for you.",
+      "Looking into your symptoms now.",
+      "I understand, checking that right away.",
+      "Got it, reviewing that for you.",
+    ];
+    const ack = acknowledgments[Math.floor(Math.random() * acknowledgments.length)];
+    setSpeakingSentence(ack);
+    setVoiceState("speaking");
+    voiceTtsRef.current.speakSentence(ack);
+
+    // Concurrently trigger fast streaming chat
+    handleSendMessage(cleanFinal, { isFromVoiceTurn: true });
+  };
+
+  dispatchVoiceTurnRef.current = dispatchVoiceTurn;
+
   // --- Main Message Submission Flow ---
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (
+    text: string,
+    options: { isFromVoiceTurn?: boolean } = {}
+  ) => {
     if (!text.trim() || isLoading) return;
 
     // 1. Append user message
@@ -677,7 +772,9 @@ export function ChatContainer({
     setIsLoading(true);
 
     if (isVoiceModeRef.current) {
-      setVoiceState("thinking");
+      if (!options.isFromVoiceTurn) {
+        setVoiceState("thinking");
+      }
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
