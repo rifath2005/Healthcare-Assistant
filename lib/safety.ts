@@ -103,7 +103,7 @@ export interface DomainScopeResult {
 }
 
 export const OUT_OF_SCOPE_REFUSAL =
-  "I am your dedicated Smart Healthcare Assistant, specialized exclusively in medical inquiries, health symptoms, clinical literacy, and scheduling appointments with our clinic physicians.\n\nI cannot assist with programming, software engineering, algorithms, or non-medical topics. Please describe any physical symptoms or wellness questions you have, or let me know if you would like to schedule a consultation with Dr. Elena Rostova, Dr. Marcus Vance, or Dr. Sarah Lin.";
+  "I am your dedicated Smart Healthcare Assistant, specialized exclusively in medical inquiries, health symptoms, clinical literacy, and scheduling appointments with our clinic physicians.\n\nI cannot assist with programming, software engineering, algorithms, or non-medical topics. Please describe any physical symptoms or wellness questions you have, or let me know if you would like to schedule a consultation with our clinic physicians: Dr. Elena Rostova, Dr. Marcus Vance, Dr. Sarah Lin, or Dr. Alex Rivera.";
 
 export const INJECTION_REFUSAL =
   "For patient data security and clinical compliance, system security overrides and prompt modifications are strictly prohibited. How may I assist with your health or symptoms today?";

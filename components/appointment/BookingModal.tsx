@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import { getClientTimezone } from "@/lib/timezone";
 import { toast } from "sonner";
 
+import { CLINIC_DOCTORS } from "@/lib/doctors";
+
 interface Doctor {
   id: string;
   name: string;
@@ -28,8 +30,8 @@ export function BookingModal({
   initialSymptoms = "",
   initialMode = "virtual",
 }: BookingModalProps) {
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
+  const [doctors, setDoctors] = useState<Doctor[]>(CLINIC_DOCTORS as any);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(CLINIC_DOCTORS[0]?.id || "");
   const [consultationType, setConsultationType] = useState<"virtual" | "direct">(initialMode);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [patientNotes, setPatientNotes] = useState(initialSymptoms);
@@ -44,16 +46,30 @@ export function BookingModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    const supabase = createClient();
-    supabase
-      .from("doctors")
-      .select("id, name, specialty, avatar_url, bio")
-      .eq("is_active", true)
-      .then(({ data }) => {
-        if (data && data.length > 0) {
-          setDoctors(data);
-          setSelectedDoctorId(data[0].id);
+    fetch("/api/doctors")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.doctors && data.doctors.length > 0) {
+          setDoctors(data.doctors);
+          setSelectedDoctorId((prev) =>
+            prev && data.doctors.some((d: any) => d.id === prev) ? prev : data.doctors[0].id
+          );
         }
+      })
+      .catch(() => {
+        const supabase = createClient();
+        supabase
+          .from("doctors")
+          .select("id, name, specialty, avatar_url, bio")
+          .eq("is_active", true)
+          .then(({ data }) => {
+            if (data && data.length > 0) {
+              setDoctors(data);
+              setSelectedDoctorId((prev) =>
+                prev && data.some((d: any) => d.id === prev) ? prev : data[0].id
+              );
+            }
+          });
       });
   }, [isOpen]);
 

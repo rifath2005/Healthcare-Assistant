@@ -85,5 +85,14 @@ VALUES
     'Fellow of the American College of Cardiology specializing in heart health, hypertension management, and lifestyle medicine.',
     'https://images.unsplash.com/photo-1594824813515-54e48b8b3a0e?auto=format&fit=crop&q=80&w=300',
     '{"monday":{"start":"08:30","end":"16:30"},"wednesday":{"start":"08:30","end":"16:30"},"friday":{"start":"08:30","end":"14:30"}}'::jsonb
+),
+(
+    '4ed011cc-c663-4573-84e7-4310735b63f9',
+    'Dr. Alex Rivera, MD',
+    'Dermatology & Skin Health',
+    'primary',
+    'Board-certified dermatologist specializing in clinical dermatology, inflammatory skin triage, and preventative skin health.',
+    'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=300',
+    '{"monday":{"start":"09:00","end":"17:00"},"tuesday":{"start":"09:00","end":"17:00"},"wednesday":{"start":"09:00","end":"17:00"},"thursday":{"start":"09:00","end":"17:00"},"friday":{"start":"09:00","end":"16:00"}}'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;
