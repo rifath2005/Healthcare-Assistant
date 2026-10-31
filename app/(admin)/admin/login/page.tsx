@@ -187,7 +187,7 @@ export default function AdminLoginPage() {
           <div className="p-3 bg-slate-800/60 border border-slate-700/60 rounded-xl text-[11px] text-slate-400 space-y-1">
             <p className="font-semibold text-slate-300">Verified Admin Accounts:</p>
             <p className="font-mono text-[10px] text-emerald-400">
-              babsword3@gmail.com &bull; babsword6@gmail.com
+              babsword3@gmail.com &bull; admin@healthcare.local
             </p>
           </div>
 
