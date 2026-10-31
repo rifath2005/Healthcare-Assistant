@@ -11,9 +11,13 @@ export function GoogleAuthButton({ label = "Continue with Google" }: { label?: s
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
-      const supabase = createClient();
-      const redirectUrl = `${window.location.origin}/auth/callback`;
+      const origin =
+        typeof window !== "undefined" && window.location.origin
+          ? window.location.origin
+          : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+      const redirectUrl = `${origin}/auth/callback`;
 
+      const supabase = createClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {

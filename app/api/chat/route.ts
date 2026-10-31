@@ -167,7 +167,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Construct Defensive Grounded Prompt
-    const defensivePrompt = formatDefensivePrompt(sanitizedInput, contextPassage);
+    let defensivePrompt = formatDefensivePrompt(sanitizedInput, contextPassage);
+    if (isVoiceMode) {
+      defensivePrompt += `\n\n<voice_mode_brevity_directive>\nSPOKEN VOICE CONVERSATION ACTIVE: You are talking directly through text-to-speech audio. Provide ONLY 1 to 2 short conversational sentences (under 30 words total). End with a single brief question so the user can easily respond. NEVER output lists, bullet points, or markdown.\n</voice_mode_brevity_directive>`;
+    }
 
     // 6. Check user session for persistence
     const supabase = createServerSupabaseClient();

@@ -38,10 +38,16 @@ export default function SignupPage() {
       const normalizedEmail = data.email.trim().toLowerCase();
       const supabase = createClient();
 
+      const origin =
+        typeof window !== "undefined" && window.location.origin
+          ? window.location.origin
+          : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+
       const { data: authData, error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password: data.password,
         options: {
+          emailRedirectTo: `${origin}/auth/callback`,
           data: {
             full_name: data.fullName,
             role: "user",

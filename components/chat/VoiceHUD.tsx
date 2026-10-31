@@ -171,6 +171,20 @@ export function VoiceHUD({
     };
   }, [micStream, state, interimTranscript, isMuted]);
 
+  // Immediate barge-in: pressing Spacebar or Escape interrupts assistant speech instantly
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.code === "Space" || e.key === "Escape") && state === "speaking") {
+        const target = e.target as HTMLElement;
+        if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
+        e.preventDefault();
+        onInterrupt();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [state, onInterrupt]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xl animate-in fade-in duration-200"
@@ -226,7 +240,16 @@ export function VoiceHUD({
         {/* Center Stage: Interactive Voice Wave Visualizer */}
         <div className="flex flex-col items-center justify-center py-2 space-y-3.5">
           {/* Dynamic Audio Waveform */}
-          <div className="relative flex items-center justify-center h-20 w-full">
+          <div
+            onClick={() => {
+              if (isSpeaking) onInterrupt();
+            }}
+            className={cn(
+              "relative flex items-center justify-center h-20 w-full transition-all",
+              isSpeaking && "cursor-pointer"
+            )}
+            title={isSpeaking ? "Click to interrupt & speak (or press Space)" : undefined}
+          >
             {/* Ambient Ripple Aura when hearing user speech */}
             {!isMuted && isListening && isHearingSound && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -302,10 +325,15 @@ export function VoiceHUD({
                 <span>Consulting clinical guidelines...</span>
               </span>
             ) : isSpeaking ? (
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-800 shadow-xs">
+              <button
+                type="button"
+                onClick={onInterrupt}
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-blue-100 hover:bg-rose-100 dark:bg-blue-950/80 dark:hover:bg-rose-950/80 text-blue-800 hover:text-rose-700 dark:text-blue-200 dark:hover:text-rose-300 border border-blue-300 hover:border-rose-300 dark:border-blue-800 dark:hover:border-rose-800 shadow-xs transition-colors cursor-pointer"
+                title="Tap to interrupt and speak now"
+              >
                 <Volume2 className="w-3.5 h-3.5 text-blue-600 animate-bounce" />
-                <span>Assistant Speaking (tap below to interrupt)</span>
-              </span>
+                <span>Assistant Speaking (tap or Space to interrupt)</span>
+              </button>
             ) : isConfirming ? (
               <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-800 shadow-xs">
                 <AlertCircle className="w-3.5 h-3.5 text-purple-600" />

@@ -47,12 +47,17 @@ The user is experiencing elevated stress, anxiety, or emotional distress.
 `;
 
 export const VOICE_MODE_SYSTEM_INSTRUCTION = `
-SPOKEN VOICE CONVERSATION MODE ACTIVE ("TALKATIVE MODE"):
-The user is conversing with you via real-time spoken audio.
-1. Spoken Conversational Cadence: Use warm, natural, humanized phrasing with concise sentences that sound natural when read aloud. Keep sentences relatively short and direct.
-2. Direct Clinical Solution: Provide the direct solution and guidance immediately. Do NOT use delay phrases or filler stalling statements like "Wait a moment", "Let me check that for you", "One second", or "Looking into that". Answer directly, warmly, and concisely.
-3. No Repetitive Disclaimers: Do NOT repeat disclaimer phrases during conversation turns. Focus on answering the user's questions directly.
-4. Spoken Accessibility: Strictly avoid dense markdown tables, long bulleted lists, complex URLs, or parenthetical citation numbers. Keep explanations spoken-friendly.
+SPOKEN VOICE CONVERSATION MODE ACTIVE ("TALKATIVE VOICE MODE"):
+The user is speaking directly with you via real-time spoken audio synthesis.
+CRITICAL SPOKEN CONVERSATION RULES:
+1. STRICT BREVITY & CONCISENESS (1 TO 2 SHORT SENTENCES MAXIMUM, UNDER 25-30 WORDS TOTAL):
+   - You MUST keep every response extremely brief, conversational, and direct.
+   - Never deliver long monologues, medical dissertations, or multi-paragraph answers.
+   - The user is listening to speech synthesis audio; keep it punchy and conversational so they can easily speak back.
+   - Deliver the core clinical advice in the first sentence, and end with 1 short question or prompt to give the floor back to the user.
+2. Direct Clinical Solution & Guidance: Answer directly, warmly, and concisely. Do NOT use delay phrases or filler stalling statements like "Wait a moment", "Let me check that for you", "One second", or "Looking into that".
+3. No Repetitive Disclaimers: Do NOT repeat disclaimer phrases during conversation turns. Focus on answering the user's spoken question directly.
+4. Spoken Accessibility: Strictly avoid dense markdown tables, long bulleted lists, numbered lists, complex URLs, or parenthetical citation numbers. Keep sentences spoken-friendly.
 5. Non-Negotiable Medical Grounding & Emergency Safety (112 / 108):
    - All medical accuracy, clinical boundaries, and symptom guidance remain strictly enforced.
    - For any acute emergency or crisis, instruct the user to call 112 or 108 immediately for emergency medical response. Never mention 911 or 988.
@@ -126,6 +131,7 @@ export function getChatModel(options: ModelOptions = {}): GenerativeModel {
   }
 
   const modelName = options.modelName || process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
+  const maxOutputTokens = options.isVoiceMode ? 120 : 1024;
 
   return client.getGenerativeModel({
     model: modelName,
@@ -133,7 +139,7 @@ export function getChatModel(options: ModelOptions = {}): GenerativeModel {
     generationConfig: {
       temperature,
       topP: 0.95,
-      maxOutputTokens: 1024,
+      maxOutputTokens,
     },
     safetySettings: SAFETY_SETTINGS,
   });

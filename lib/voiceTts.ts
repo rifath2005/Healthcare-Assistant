@@ -29,7 +29,7 @@ export interface VoiceTtsOptions {
 }
 
 export const SPOKEN_MEDICAL_DISCLAIMER =
-  "Provides general health information only; for emergencies call 112 or 108 (or 911/988).";
+  "Provides general health information only; for emergencies call 112 or 108.";
 
 export class VoiceTtsManager {
   private queue: string[] = [];

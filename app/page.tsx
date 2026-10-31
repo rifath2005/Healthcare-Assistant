@@ -8,7 +8,7 @@ import { ChatContainer } from "@/components/chat/ChatContainer";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { createClient } from "@/lib/supabase/client";
-import { clearGuestMessages } from "@/lib/supabase/syncGuestSession";
+import { clearGuestMessages, clearUserSessionData } from "@/lib/supabase/syncGuestSession";
 import {
   HeartPulse,
   Calendar,
@@ -75,11 +75,23 @@ export default function HomePage() {
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isMounted) return;
       if (event === "SIGNED_OUT") {
+        clearGuestMessages();
+        clearUserSessionData();
         setUser(null);
+        setActiveConversationId(null);
+        setSessionKey((prev) => prev + 1);
         setLoadingUser(false);
         router.replace("/login");
       } else if (session?.user) {
-        setUser(session.user);
+        setUser((prevUser: any) => {
+          if (prevUser?.id && prevUser.id !== session.user.id) {
+            clearGuestMessages();
+            clearUserSessionData();
+            setActiveConversationId(null);
+            setSessionKey((prev) => prev + 1);
+          }
+          return session.user;
+        });
         setLoadingUser(false);
       }
     });
@@ -94,8 +106,11 @@ export default function HomePage() {
   const handleSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
+    clearGuestMessages();
+    clearUserSessionData();
     setUser(null);
     setActiveConversationId(null);
+    setSessionKey((prev) => prev + 1);
     toast.success("Signed out successfully");
     router.push("/login");
     router.refresh();
@@ -105,6 +120,7 @@ export default function HomePage() {
     setActiveConversationId(null);
     setSessionKey((prev) => prev + 1);
     clearGuestMessages();
+    clearUserSessionData();
   };
 
   if (loadingUser) {
@@ -207,6 +223,7 @@ export default function HomePage() {
       {/* Main Body: Sidebar + Chat Stream */}
       <div className="flex flex-1 overflow-hidden">
         <ChatSidebar
+          userId={user?.id || null}
           currentConversationId={activeConversationId}
           onSelectConversation={setActiveConversationId}
           onNewConversation={handleNewConversation}
@@ -216,7 +233,8 @@ export default function HomePage() {
 
         <main className="flex-1 flex flex-col h-full overflow-hidden">
           <ChatContainer
-            key={sessionKey}
+            key={`${user?.id || "guest"}_${sessionKey}`}
+            userId={user?.id || null}
             conversationId={activeConversationId}
             onConversationCreated={(newId) => setActiveConversationId(newId)}
             onNewConversation={handleNewConversation}

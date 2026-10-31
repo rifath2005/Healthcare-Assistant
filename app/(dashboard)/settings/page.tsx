@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { User, Lock, Trash2, ArrowLeft, Loader2, Save, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { clearGuestMessages, clearUserSessionData } from "@/lib/supabase/syncGuestSession";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
@@ -107,6 +108,8 @@ export default function SettingsPage() {
         // Cascade delete on profiles deletes conversations, appointments, messages
         await supabase.from("profiles").delete().eq("id", user.id);
         await supabase.auth.signOut();
+        clearGuestMessages();
+        clearUserSessionData(user.id);
         toast.success("Account and health data permanently deleted");
         router.push("/");
       }

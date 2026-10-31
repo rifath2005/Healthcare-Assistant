@@ -21,6 +21,7 @@ interface ChatSidebarProps {
   onCloseMobile: () => void;
   onOpenBreathing?: () => void;
   onOpenGrounding?: () => void;
+  userId?: string | null;
 }
 
 export function ChatSidebar({
@@ -29,23 +30,29 @@ export function ChatSidebar({
   onNewConversation,
   isOpen,
   onCloseMobile,
+  userId,
 }: ChatSidebarProps) {
   const [threads, setThreads] = useState<ConversationThread[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
-  const loadThreads = async () => {
+  const loadThreads = React.useCallback(async () => {
     try {
       const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      const activeUid = userId || user?.id;
+      if (!activeUid) {
+        setThreads([]);
+        return;
+      }
 
       const { data, error } = await supabase
         .from("conversations")
         .select("id, title, created_at, updated_at")
+        .eq("user_id", activeUid)
         .order("updated_at", { ascending: false });
 
       if (!error && data) {
@@ -54,11 +61,27 @@ export function ChatSidebar({
     } catch (e) {
       console.warn("Failed to load conversation threads:", e);
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
+    setThreads([]); // Instantly purge previous user threads before loading current user's
     loadThreads();
-  }, [currentConversationId]);
+
+    const supabase = createClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        setThreads([]);
+      } else if (event === "SIGNED_IN") {
+        loadThreads();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [currentConversationId, loadThreads]);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();

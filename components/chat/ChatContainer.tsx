@@ -52,6 +52,7 @@ interface ChatContainerProps {
   showGrounding?: boolean;
   onCloseBreathing?: () => void;
   onCloseGrounding?: () => void;
+  userId?: string | null;
 }
 
 const INITIAL_WELCOME_MESSAGE: Message = {
@@ -73,6 +74,7 @@ export function ChatContainer({
   onConversationCreated,
   onNewConversation,
   onToggleSidebar,
+  userId,
 }: ChatContainerProps) {
   const [messages, setMessages] = useState<Message[]>([INITIAL_WELCOME_MESSAGE]);
   const currentConvIdRef = useRef<string | null>(conversationId || null);
@@ -358,12 +360,16 @@ export function ChatContainer({
 
       // Guest mode fallback or initial reset
       if (isMounted) {
-        const guestMsgs = getGuestMessages();
-        if (guestMsgs.length > 0 && !conversationId) {
-          setMessages(guestMsgs as Message[]);
-        } else {
-          setMessages([INITIAL_WELCOME_MESSAGE]);
+        // Authenticated users start fresh on new consultation; guest storage ONLY for unauthenticated users
+        if (!userId && !conversationId) {
+          const guestMsgs = getGuestMessages();
+          if (guestMsgs.length > 0) {
+            setMessages(guestMsgs as Message[]);
+            setCrisisState({ triggered: false });
+            return;
+          }
         }
+        setMessages([INITIAL_WELCOME_MESSAGE]);
         setCrisisState({ triggered: false });
       }
     }
@@ -373,7 +379,7 @@ export function ChatContainer({
     return () => {
       isMounted = false;
     };
-  }, [conversationId]);
+  }, [conversationId, userId]);
 
   // --- Voice Loop Methods ---
   const startListeningLoop = () => {
@@ -458,7 +464,7 @@ export function ChatContainer({
             clearTimeout(speechSilenceTimerRef.current);
           }
 
-          // User requirement: Wait until NO words have been received for 3 full seconds before replying!
+          // Natural voice turn cadence: 1.4 seconds of silence before assistant responds
           speechSilenceTimerRef.current = setTimeout(() => {
             const spokenText = (latestInterimRef.current || accumulatedTranscriptRef.current).trim();
             if (speechSilenceTimerRef.current) {
@@ -489,7 +495,7 @@ export function ChatContainer({
               latestInterimRef.current = "";
               setInterimTranscript("");
             }
-          }, 3000);
+          }, 1400);
         }
       };
 
@@ -1061,8 +1067,8 @@ export function ChatContainer({
       isListeningActiveRef.current = false;
     }
 
-    // Save to local guest storage if unauthenticated
-    if (!conversationId) {
+    // Save to local guest storage ONLY if truly unauthenticated
+    if (!conversationId && !userId) {
       setGuestMessages(nextMessages as GuestMessage[]);
     }
 
@@ -1269,7 +1275,7 @@ export function ChatContainer({
             ? { ...m, content: cleanedFinalText || accumulatedText, citations: incomingCitations }
             : m
         );
-        if (!conversationId) {
+        if (!conversationId && !userId) {
           setGuestMessages(updated as GuestMessage[]);
         }
         return updated;

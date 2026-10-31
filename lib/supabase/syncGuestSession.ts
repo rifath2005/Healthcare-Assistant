@@ -36,12 +36,34 @@ export function setGuestMessages(messages: GuestMessage[]) {
 }
 
 /**
- * Clears stored guest messages after sync.
+ * Clears stored guest messages after sync or logout.
  */
 export function clearGuestMessages() {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(GUEST_STORAGE_KEY);
+  } catch {
+    // Ignore error
+  }
+}
+
+/**
+ * Completely purges guest and user-specific conversation caches from localStorage.
+ */
+export function clearUserSessionData(userId?: string) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(GUEST_STORAGE_KEY);
+    if (userId) {
+      localStorage.removeItem(`healthcare_messages_${userId}`);
+    }
+    // Also remove any residual session keys
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith("healthcare_guest_") || key.startsWith("healthcare_messages_"))) {
+        localStorage.removeItem(key);
+      }
+    }
   } catch {
     // Ignore error
   }

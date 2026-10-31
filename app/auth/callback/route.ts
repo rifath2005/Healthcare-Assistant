@@ -5,11 +5,18 @@ import { env } from "@/lib/env";
 import { saveGoogleRefreshToken } from "@/lib/integrations";
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const rawNext = searchParams.get("next") || "/";
   // Protect against open redirect attacks
   const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
+
+  // Derive public origin reliably behind reverse proxies (Vercel)
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  const origin = forwardedHost
+    ? `${forwardedProto}://${forwardedHost}`
+    : new URL(request.url).origin;
 
   if (code) {
     const cookieStore = cookies();
