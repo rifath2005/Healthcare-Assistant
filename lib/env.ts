@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+// Determine if this is a live production deployment (enforcing strict secrets),
+// rather than a CI test/build runner (e.g. GitHub Actions).
+const isProductionDeployment =
+  process.env.NODE_ENV === "production" &&
+  process.env.GITHUB_ACTIONS !== "true" &&
+  !(process.env.CI === "true" && !process.env.VERCEL);
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
@@ -31,11 +38,11 @@ const envSchema = z.object({
   
   // Security & Cron
   CRON_SECRET:
-    process.env.NODE_ENV === "production"
+    isProductionDeployment
       ? z.string({ required_error: "CRON_SECRET is required in production" }).min(16, "CRON_SECRET must be at least 16 characters in production")
-      : z.string().optional().default("default_cron_secret_32_characters_long"),
+      : z.string().default("default_cron_secret_32_characters_long"),
   CLINICAL_ENCRYPTION_KEY:
-    process.env.NODE_ENV === "production"
+    isProductionDeployment
       ? z.string({ required_error: "CLINICAL_ENCRYPTION_KEY is required in production" }).min(32, "CLINICAL_ENCRYPTION_KEY must be at least 32 characters in production")
       : z.string().min(16).default("0123456789abcdef0123456789abcdef"),
   
@@ -86,13 +93,13 @@ try {
   if (error instanceof z.ZodError) {
     console.error("❌ Environment validation error:", JSON.stringify(error.format(), null, 2));
   }
-  if (process.env.NODE_ENV === "production") {
+  if (isProductionDeployment) {
     throw new Error(
       `CRITICAL: Missing or invalid required environment variables in production:\n` +
       `${error instanceof Error ? error.message : String(error)}`
     );
   }
-  // In development and test modes, fall back to safe local defaults
+  // In development, test, and CI modes, fall back to safe defaults
   parsedEnv = envSchema.parse({});
 }
 
