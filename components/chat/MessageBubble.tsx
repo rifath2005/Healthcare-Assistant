@@ -117,12 +117,31 @@ export function MessageBubble({
     }
   };
 
-  // Detect if content suggests scheduling an appointment
-  const suggestsBooking = !isUser && (
-    content.toLowerCase().includes("schedule an appointment") ||
-    content.toLowerCase().includes("book a consultation") ||
-    content.toLowerCase().includes("booking an appointment")
-  );
+  // Check if this message indicates an already-confirmed appointment
+  const isConfirmed =
+    content.includes("Consultation Confirmed!") ||
+    content.includes("Appointment Confirmed") ||
+    content.includes("Verified Completion Checklist");
+
+  // Check if this message proposes or asks to confirm an appointment
+  const lowerContent = content.toLowerCase();
+  const isConfirming =
+    !isConfirmed &&
+    (lowerContent.includes("shall i lock that in") ||
+      lowerContent.includes("lock that in") ||
+      lowerContent.includes("would you prefer a virtual video meet") ||
+      lowerContent.includes("prefer a virtual video meet") ||
+      lowerContent.includes("just to confirm, you would like to schedule") ||
+      lowerContent.includes("would you like me to confirm this appointment"));
+
+  // Detect if content suggests scheduling or confirming an appointment
+  const suggestsBooking =
+    !isUser &&
+    !isConfirmed &&
+    (isConfirming ||
+      lowerContent.includes("schedule an appointment") ||
+      lowerContent.includes("book a consultation") ||
+      lowerContent.includes("booking an appointment"));
 
   return (
     <div
@@ -184,26 +203,28 @@ export function MessageBubble({
           <div className="mt-3 p-3.5 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl space-y-2.5">
             <div>
               <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-                Ready to consult a physician?
+                {isConfirming ? "Confirm Appointment Mode:" : "Ready to consult a physician?"}
               </p>
               <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
-                Schedule a consultation with our clinic doctors:
+                {isConfirming
+                  ? "Select your consultation type to lock in and dispatch invites:"
+                  : "Schedule a consultation with our clinic doctors:"}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => onOpenBookingModal("virtual")}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
-                <span>🌐 Book Virtual (Meet)</span>
+                <span>{isConfirming ? "🌐 Confirm Virtual (Meet)" : "🌐 Book Virtual (Meet)"}</span>
               </button>
               <button
                 type="button"
                 onClick={() => onOpenBookingModal("direct")}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
-                <span>🏥 Direct In-Person Visit</span>
+                <span>{isConfirming ? "🏥 Confirm In-Person Visit" : "🏥 Direct In-Person Visit"}</span>
               </button>
             </div>
           </div>

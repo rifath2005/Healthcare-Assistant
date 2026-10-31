@@ -14,6 +14,8 @@ import {
   detectVoiceAction,
   isAffirmativeConfirmation,
   isNegativeDecline,
+  parseProposedBookingFromText,
+  resolveConsultationType,
   type PendingVoiceAction,
 } from "@/lib/voiceActions";
 import {
@@ -890,6 +892,7 @@ export function ChatContainer({
       setActionExecuting(false);
       setPendingVoiceAction(null);
       pendingVoiceActionRef.current = null;
+      updateLoading(false);
     }
   };
 
@@ -897,6 +900,7 @@ export function ChatContainer({
     setPendingVoiceAction(null);
     pendingVoiceActionRef.current = null;
     setTaskVerification(null);
+    updateLoading(false);
     const spoken = "Understood. That action has been cancelled. How else can I assist you today?";
     appendAssistantSpoken(spoken);
   };
@@ -980,15 +984,67 @@ export function ChatContainer({
     const cleanFinal = spokenText.trim();
     if (!cleanFinal) return;
 
-    // 1. Check if pending action is awaiting user confirmation
+    const appendUserVoiceTurn = (spoken: string) => {
+      const userMsg: Message = {
+        id: `usr_${Date.now()}`,
+        role: "user",
+        content: spoken,
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+    };
+
+    // 1. Check if pending action is awaiting user confirmation or consultation mode selection
     const currentPending = pendingVoiceActionRef.current;
     if (currentPending) {
-      if (isAffirmativeConfirmation(cleanFinal)) {
-        executeConfirmedAction(currentPending);
-        return;
-      } else if (isNegativeDecline(cleanFinal)) {
-        cancelPendingAction();
-        return;
+      if (currentPending.needsModeSelection) {
+        const mode = resolveConsultationType(cleanFinal);
+        if (mode === "direct" || mode === "virtual") {
+          currentPending.consultationType = mode;
+          currentPending.needsModeSelection = false;
+          appendUserVoiceTurn(cleanFinal);
+          executeConfirmedAction(currentPending);
+          return;
+        } else if (isAffirmativeConfirmation(cleanFinal)) {
+          // If user affirms without picking, default to virtual
+          currentPending.consultationType = "virtual";
+          currentPending.needsModeSelection = false;
+          appendUserVoiceTurn(cleanFinal);
+          executeConfirmedAction(currentPending);
+          return;
+        } else if (isNegativeDecline(cleanFinal)) {
+          appendUserVoiceTurn(cleanFinal);
+          cancelPendingAction();
+          return;
+        }
+      } else {
+        if (isAffirmativeConfirmation(cleanFinal)) {
+          appendUserVoiceTurn(cleanFinal);
+          executeConfirmedAction(currentPending);
+          return;
+        } else if (isNegativeDecline(cleanFinal)) {
+          appendUserVoiceTurn(cleanFinal);
+          cancelPendingAction();
+          return;
+        }
+      }
+    }
+
+    // 1b. Check if the assistant recently asked to confirm a booking and user affirmed or picked mode
+    const isAffirmative = isAffirmativeConfirmation(cleanFinal);
+    const chosenMode = resolveConsultationType(cleanFinal);
+    if (isAffirmative || chosenMode !== "unspecified") {
+      const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+      if (lastAssistant?.content && !lastAssistant.content.includes("Consultation Confirmed!")) {
+        const proposedBooking = parseProposedBookingFromText(lastAssistant.content);
+        if (proposedBooking) {
+          if (chosenMode !== "unspecified") {
+            proposedBooking.consultationType = chosenMode;
+          }
+          appendUserVoiceTurn(cleanFinal);
+          executeConfirmedAction(proposedBooking);
+          return;
+        }
       }
     }
 
@@ -1049,6 +1105,52 @@ export function ChatContainer({
     const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
     updateLoading(true);
+
+    // Intercept confirmation or mode selection for pending or recently proposed bookings
+    const currentPending = pendingVoiceActionRef.current;
+    if (currentPending) {
+      if (currentPending.needsModeSelection) {
+        const mode = resolveConsultationType(text);
+        if (mode === "direct" || mode === "virtual") {
+          currentPending.consultationType = mode;
+          currentPending.needsModeSelection = false;
+          executeConfirmedAction(currentPending);
+          return;
+        } else if (isAffirmativeConfirmation(text)) {
+          currentPending.consultationType = "virtual";
+          currentPending.needsModeSelection = false;
+          executeConfirmedAction(currentPending);
+          return;
+        } else if (isNegativeDecline(text)) {
+          cancelPendingAction();
+          return;
+        }
+      } else {
+        if (isAffirmativeConfirmation(text)) {
+          executeConfirmedAction(currentPending);
+          return;
+        } else if (isNegativeDecline(text)) {
+          cancelPendingAction();
+          return;
+        }
+      }
+    }
+
+    const isAffirmative = isAffirmativeConfirmation(text);
+    const chosenMode = resolveConsultationType(text);
+    if (isAffirmative || chosenMode !== "unspecified") {
+      const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+      if (lastAssistant?.content && !lastAssistant.content.includes("Consultation Confirmed!")) {
+        const proposedBooking = parseProposedBookingFromText(lastAssistant.content);
+        if (proposedBooking) {
+          if (chosenMode !== "unspecified") {
+            proposedBooking.consultationType = chosenMode;
+          }
+          executeConfirmedAction(proposedBooking);
+          return;
+        }
+      }
+    }
 
     if (isVoiceModeRef.current) {
       if (speechSilenceTimerRef.current) {
@@ -1476,6 +1578,12 @@ export function ChatContainer({
             createdAt={m.created_at}
             isTyping={isLoading && m.role === "assistant" && !m.content}
             onOpenBookingModal={(mode) => {
+              const proposed = parseProposedBookingFromText(m.content);
+              if (proposed) {
+                if (mode) proposed.consultationType = mode;
+                executeConfirmedAction(proposed);
+                return;
+              }
               if (mode) setBookingMode(mode);
               setShowBooking(true);
             }}
