@@ -330,7 +330,7 @@ export async function sendAppointmentCancellation(options: SendAppointmentEmailO
   const patientDestination = options.patientEmail || options.to;
   const isVirtual = options.consultationType === "virtual" || Boolean(options.meetLink);
   const cancelledByTitle = options.cancelledBy === "patient" ? "Patient Request" : "Attending Physician / Clinic";
-  const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+  const dashboardUrl = env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   if (!resend) {
     console.log(`[Email Mock] Cancellation email would be sent to: ${patientDestination}`);
