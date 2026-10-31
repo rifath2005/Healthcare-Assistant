@@ -397,12 +397,9 @@ export function ChatContainer({
       return;
     }
 
-    // Only reset speech buffers if starting a fresh turn (not reconnecting while silence timer is running)
-    if (!speechSilenceTimerRef.current) {
-      accumulatedTranscriptRef.current = "";
-      latestInterimRef.current = "";
-      setInterimTranscript("");
-    }
+    // Reset speech buffer for fresh turn
+    latestInterimRef.current = "";
+    setInterimTranscript("");
 
     const SpeechRecognition =
       typeof window !== "undefined" &&
@@ -446,29 +443,20 @@ export function ChatContainer({
           }
         }
 
-        sessionFinal = sessionFinal.trim();
-        sessionInterim = sessionInterim.trim();
-
-        // Accumulate prior session segments + current session final + interim
-        const currentSpoken = [accumulatedTranscriptRef.current, sessionFinal, sessionInterim]
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .join(" ")
-          .replace(/\s+/g, " ")
-          .trim();
+        const currentSpoken = (sessionFinal + " " + sessionInterim).replace(/\s+/g, " ").trim();
 
         if (currentSpoken) {
           latestInterimRef.current = currentSpoken;
           setInterimTranscript(currentSpoken);
 
-          // Reset the 3-second silence detector on every newly detected word
+          // Reset the silence detector on every newly detected word
           if (speechSilenceTimerRef.current) {
             clearTimeout(speechSilenceTimerRef.current);
           }
 
-          // Natural voice turn cadence: 1.4 seconds of silence before assistant responds
+          // Natural voice turn cadence: 1.2 seconds of silence before assistant responds
           speechSilenceTimerRef.current = setTimeout(() => {
-            const spokenText = (latestInterimRef.current || accumulatedTranscriptRef.current).trim();
+            const spokenText = latestInterimRef.current.trim();
             if (speechSilenceTimerRef.current) {
               clearTimeout(speechSilenceTimerRef.current);
               speechSilenceTimerRef.current = null;
@@ -479,7 +467,6 @@ export function ChatContainer({
               isVoiceModeRef.current &&
               (voiceStateRef.current === "listening" || voiceStateRef.current === "awaiting_confirmation")
             ) {
-              accumulatedTranscriptRef.current = "";
               latestInterimRef.current = "";
               setFinalTranscript(spokenText);
               setInterimTranscript("");
@@ -492,18 +479,16 @@ export function ChatContainer({
 
               dispatchVoiceTurnRef.current(spokenText);
             } else {
-              // Spurious noise or text shorter than 2 chars; reset buffer and keep listening
-              accumulatedTranscriptRef.current = "";
               latestInterimRef.current = "";
               setInterimTranscript("");
             }
-          }, 1400);
+          }, 1200);
         }
       };
 
       recognition.onspeechend = () => {
         // Accelerate dispatch when speaker finishes their sentence
-        const spokenText = (latestInterimRef.current || accumulatedTranscriptRef.current).trim();
+        const spokenText = latestInterimRef.current.trim();
         if (
           spokenText.length >= 2 &&
           isVoiceModeRef.current &&
@@ -513,7 +498,7 @@ export function ChatContainer({
             clearTimeout(speechSilenceTimerRef.current);
           }
           speechSilenceTimerRef.current = setTimeout(() => {
-            const finalText = (latestInterimRef.current || accumulatedTranscriptRef.current).trim();
+            const finalText = latestInterimRef.current.trim();
             if (speechSilenceTimerRef.current) {
               clearTimeout(speechSilenceTimerRef.current);
               speechSilenceTimerRef.current = null;
@@ -523,7 +508,6 @@ export function ChatContainer({
               isVoiceModeRef.current &&
               (voiceStateRef.current === "listening" || voiceStateRef.current === "awaiting_confirmation")
             ) {
-              accumulatedTranscriptRef.current = "";
               latestInterimRef.current = "";
               setFinalTranscript(finalText);
               setInterimTranscript("");
@@ -534,7 +518,7 @@ export function ChatContainer({
               } catch {}
               dispatchVoiceTurnRef.current(finalText);
             }
-          }, 600);
+          }, 500);
         }
       };
 
@@ -563,7 +547,7 @@ export function ChatContainer({
         isListeningActiveRef.current = false;
 
         // If the speech engine auto-stopped after user spoke, immediately dispatch the turn!
-        const pendingSpoken = (latestInterimRef.current || accumulatedTranscriptRef.current).trim();
+        const pendingSpoken = latestInterimRef.current.trim();
         if (
           pendingSpoken.length >= 2 &&
           isVoiceModeRef.current &&
@@ -573,7 +557,6 @@ export function ChatContainer({
             clearTimeout(speechSilenceTimerRef.current);
             speechSilenceTimerRef.current = null;
           }
-          accumulatedTranscriptRef.current = "";
           latestInterimRef.current = "";
           setFinalTranscript(pendingSpoken);
           setInterimTranscript("");
@@ -602,7 +585,7 @@ export function ChatContainer({
             ) {
               startListeningLoop();
             }
-          }, 150);
+          }, 400);
         }
       };
 
@@ -619,8 +602,7 @@ export function ChatContainer({
   };
   startListeningLoopRef.current = startListeningLoop;
 
-  // Unbreakable self-healing watchdog: restores speech recognition if Chrome or network dropped
-  // while the assistant is waiting for user speech
+  // Gentle self-healing watchdog: restores speech recognition if dropped for 5s
   useEffect(() => {
     if (!isVoiceMode) return;
 
@@ -641,7 +623,7 @@ export function ChatContainer({
         }
         startListeningLoopRef.current();
       }
-    }, 1200);
+    }, 5000);
 
     return () => clearInterval(watchdog);
   }, [isVoiceMode, updateVoiceState]);
