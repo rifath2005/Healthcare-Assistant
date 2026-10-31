@@ -14,6 +14,17 @@ const nextConfig = {
       },
     ],
   },
+  webpack: (config, { dev, isServer }) => {
+    if (dev && !isServer) {
+      // Extend chunk loading timeout to 60 seconds during local development
+      // to eliminate ChunkLoadError timeouts during first-time cold-start compilation
+      config.output = {
+        ...config.output,
+        chunkLoadTimeout: 60000,
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

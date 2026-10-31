@@ -39,6 +39,34 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                function handleChunkError(err) {
+                  var msg = (err && (err.message || err.toString())) || '';
+                  if (msg.indexOf('Loading chunk') !== -1 || msg.indexOf('ChunkLoadError') !== -1) {
+                    if (!sessionStorage.getItem('chunk_retry')) {
+                      sessionStorage.setItem('chunk_retry', '1');
+                      window.location.reload();
+                    }
+                  }
+                }
+                window.addEventListener('error', function(e) {
+                  handleChunkError(e.error || e);
+                });
+                window.addEventListener('unhandledrejection', function(e) {
+                  handleChunkError(e.reason);
+                });
+                window.addEventListener('load', function() {
+                  sessionStorage.removeItem('chunk_retry');
+                });
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="antialiased font-sans">
         <ThemeProvider
           attribute="class"
