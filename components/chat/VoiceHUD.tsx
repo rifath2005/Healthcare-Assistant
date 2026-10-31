@@ -97,12 +97,48 @@ export function VoiceHUD({
       return;
     }
 
-    // If live micStream is not yet attached or supported, drive wave with interim transcript
+    // If live micStream is not attached (or released to free hardware mic for SpeechRecognition on mobile),
+    // animate a gentle breathing wave when listening, and dynamic audio bands when speech is detected.
     if (!micStream) {
       const hasText = Boolean(interimTranscript && interimTranscript.trim());
       setIsHearingSound(hasText);
-      setFrequencies(hasText ? [18, 32, 45, 60, 52, 40, 28, 15, 8] : [0, 0, 0, 0, 0, 0, 0, 0, 0]);
-      return;
+
+      let step = 0;
+      const interval = setInterval(() => {
+        step += 0.25;
+        const hearing = Boolean(interimTranscript && interimTranscript.trim());
+        setIsHearingSound(hearing);
+
+        if (hearing) {
+          // Dynamic lively speech bars when user is speaking
+          setFrequencies([
+            120 + Math.sin(step * 2) * 60,
+            180 + Math.cos(step * 1.8) * 50,
+            230 + Math.sin(step * 1.4) * 25,
+            250 + Math.cos(step * 2.2) * 10,
+            240 + Math.sin(step * 1.7) * 15,
+            190 + Math.cos(step * 1.5) * 45,
+            140 + Math.sin(step * 1.9) * 55,
+            90 + Math.cos(step * 1.2) * 40,
+            50 + Math.sin(step * 2.1) * 30,
+          ]);
+        } else {
+          // Gentle ambient breathing wave while listening
+          setFrequencies([
+            35 + Math.sin(step) * 15,
+            50 + Math.cos(step * 0.9) * 18,
+            75 + Math.sin(step * 1.1) * 25,
+            95 + Math.cos(step * 1.0) * 30,
+            80 + Math.sin(step * 1.2) * 25,
+            60 + Math.cos(step * 0.8) * 20,
+            45 + Math.sin(step * 1.3) * 15,
+            30 + Math.cos(step * 0.7) * 12,
+            20 + Math.sin(step * 1.4) * 10,
+          ]);
+        }
+      }, 70);
+
+      return () => clearInterval(interval);
     }
 
     try {
@@ -287,7 +323,8 @@ export function VoiceHUD({
                       const normalized = Math.max(8, Math.min(52, Math.round((band / 255) * 52)));
                       barHeight = normalized;
                     } else {
-                      barHeight = 4;
+                      // Ambient gentle breathing baseline wave so visualizer is alive while listening
+                      barHeight = Math.max(4, Math.min(14, Math.round((band / 255) * 20)));
                     }
                   } else if (isSpeaking) {
                     const offsets = [16, 28, 44, 50, 40, 46, 34, 20, 12];

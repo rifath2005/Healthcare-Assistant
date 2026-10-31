@@ -501,6 +501,43 @@ export function ChatContainer({
         }
       };
 
+      recognition.onspeechend = () => {
+        // Accelerate dispatch when speaker finishes their sentence
+        const spokenText = (latestInterimRef.current || accumulatedTranscriptRef.current).trim();
+        if (
+          spokenText.length >= 2 &&
+          isVoiceModeRef.current &&
+          (voiceStateRef.current === "listening" || voiceStateRef.current === "awaiting_confirmation")
+        ) {
+          if (speechSilenceTimerRef.current) {
+            clearTimeout(speechSilenceTimerRef.current);
+          }
+          speechSilenceTimerRef.current = setTimeout(() => {
+            const finalText = (latestInterimRef.current || accumulatedTranscriptRef.current).trim();
+            if (speechSilenceTimerRef.current) {
+              clearTimeout(speechSilenceTimerRef.current);
+              speechSilenceTimerRef.current = null;
+            }
+            if (
+              finalText.length >= 2 &&
+              isVoiceModeRef.current &&
+              (voiceStateRef.current === "listening" || voiceStateRef.current === "awaiting_confirmation")
+            ) {
+              accumulatedTranscriptRef.current = "";
+              latestInterimRef.current = "";
+              setFinalTranscript(finalText);
+              setInterimTranscript("");
+              isListeningActiveRef.current = false;
+              updateVoiceState("thinking");
+              try {
+                recognition.stop();
+              } catch {}
+              dispatchVoiceTurnRef.current(finalText);
+            }
+          }, 600);
+        }
+      };
+
       recognition.onerror = (event: any) => {
         // Suppress expected lifecycle events (silence or manual stop/abort)
         if (event.error === "aborted" || event.error === "no-speech") {
@@ -525,9 +562,25 @@ export function ChatContainer({
       recognition.onend = () => {
         isListeningActiveRef.current = false;
 
-        // If the 3-second silence timer is currently running, save text spoken so far
-        if (speechSilenceTimerRef.current && latestInterimRef.current) {
-          accumulatedTranscriptRef.current = latestInterimRef.current;
+        // If the speech engine auto-stopped after user spoke, immediately dispatch the turn!
+        const pendingSpoken = (latestInterimRef.current || accumulatedTranscriptRef.current).trim();
+        if (
+          pendingSpoken.length >= 2 &&
+          isVoiceModeRef.current &&
+          (voiceStateRef.current === "listening" || voiceStateRef.current === "awaiting_confirmation")
+        ) {
+          if (speechSilenceTimerRef.current) {
+            clearTimeout(speechSilenceTimerRef.current);
+            speechSilenceTimerRef.current = null;
+          }
+          accumulatedTranscriptRef.current = "";
+          latestInterimRef.current = "";
+          setFinalTranscript(pendingSpoken);
+          setInterimTranscript("");
+          isListeningActiveRef.current = false;
+          updateVoiceState("thinking");
+          dispatchVoiceTurnRef.current(pendingSpoken);
+          return;
         }
 
         // Restart listening if still in voice mode and not currently busy
@@ -605,18 +658,20 @@ export function ChatContainer({
       return;
     }
 
-    // Verify microphone permission and obtain live stream for audio wave visualizer
-    let stream: MediaStream | null = null;
+    // Verify microphone permission via getUserMedia and immediately release hardware tracks
+    // so the SpeechRecognition engine on mobile (Android Chrome & iOS Safari) can bind cleanly
+    // to the hardware microphone without being locked out by an active WebRTC session.
     try {
       if (navigator?.mediaDevices?.getUserMedia) {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        setMicStream(stream);
-        micStreamRef.current = stream;
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
       }
     } catch (permErr: any) {
       toast.error("Microphone access was denied. Please allow microphone permissions in your browser.");
       return;
     }
+    setMicStream(null);
+    micStreamRef.current = null;
 
     setIsVoiceMode(true);
     isVoiceModeRef.current = true;
@@ -642,13 +697,25 @@ export function ChatContainer({
       }
       voiceTtsRef.current.setHasSpokenDisclaimer(true);
       updateVoiceState("speaking");
+
+      let disclaimerFinished = false;
+      const startListeningSafely = () => {
+        if (disclaimerFinished) return;
+        disclaimerFinished = true;
+        if (isVoiceModeRef.current) {
+          updateVoiceState("listening");
+          startListeningLoop();
+        }
+      };
+
+      // Failsafe timer (3.5s): on mobile if TTS is silent or onend is blocked, start listening
+      const timer = setTimeout(startListeningSafely, 3500);
+
       voiceTtsRef.current.speakSentence(
         "Voice mode active. " + SPOKEN_MEDICAL_DISCLAIMER,
         () => {
-          if (isVoiceModeRef.current) {
-            updateVoiceState("listening");
-            startListeningLoop();
-          }
+          clearTimeout(timer);
+          startListeningSafely();
         }
       );
     } else {
