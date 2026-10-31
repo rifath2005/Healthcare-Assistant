@@ -10,6 +10,7 @@ export interface PendingVoiceAction {
   timeDisplay: string;
   consultationType: "virtual" | "direct";
   needsModeSelection?: boolean;
+  needsSlotSelection?: boolean;
   appointmentId?: string; // for reschedule or cancel
   spokenPrompt: string;
   patientNotes?: string;
@@ -115,6 +116,8 @@ export function resolveSlotTiming(
   endTime: string;
   dateDisplay: string;
   timeDisplay: string;
+  hasExplicitDate: boolean;
+  hasExplicitTime: boolean;
 } {
   const lower = text.toLowerCase();
   const targetDate = new Date(referenceDate);
@@ -145,6 +148,7 @@ export function resolveSlotTiming(
   };
 
   let foundDay = false;
+  let hasExplicitDate = false;
 
   // 1a. Specific Calendar Month & Day e.g., "November 5th", "Nov 5", "5th of November"
   const monthNamesPattern = Object.keys(monthMap).join("|");
@@ -179,6 +183,7 @@ export function resolveSlotTiming(
       }
       targetDate.setFullYear(targetYear, monthIndex, dayNum);
       foundDay = true;
+      hasExplicitDate = true;
     }
   }
 
@@ -187,6 +192,7 @@ export function resolveSlotTiming(
     for (const [dayName, dayIndex] of Object.entries(dayOfWeekMap)) {
       if (new RegExp(`\\b${dayName}\\b`, "i").test(lower)) {
         foundDay = true;
+        hasExplicitDate = true;
         const currentDay = targetDate.getDay();
         let diff = dayIndex - currentDay;
         if (diff <= 0) diff += 7; // Next occurrence
@@ -203,15 +209,18 @@ export function resolveSlotTiming(
   if (!foundDay) {
     if (/\btomorrow\b/i.test(lower)) {
       targetDate.setDate(targetDate.getDate() + 1);
+      hasExplicitDate = true;
     } else if (/\btoday\b/i.test(lower)) {
-      // Keep today
+      hasExplicitDate = true;
     } else {
       // Default to next business day or tomorrow
       targetDate.setDate(targetDate.getDate() + 1);
+      hasExplicitDate = false;
     }
   }
 
   // 2. Time resolution
+  let hasExplicitTime = false;
   let hour = 14; // Default 2:00 PM
   let minute = 0;
 
@@ -228,6 +237,7 @@ export function resolveSlotTiming(
     }
     hour = parsedHour;
     minute = parsedMin;
+    hasExplicitTime = true;
   } else {
     timeMatch = lower.match(/\b(\d{1,2})\s*(am|pm)\b/i);
     if (timeMatch) {
@@ -237,6 +247,7 @@ export function resolveSlotTiming(
       if (meridiem === "am" && parsedHour === 12) parsedHour = 0;
       hour = parsedHour;
       minute = 0;
+      hasExplicitTime = true;
     } else {
       timeMatch = lower.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i);
       if (timeMatch) {
@@ -250,15 +261,19 @@ export function resolveSlotTiming(
         }
         hour = parsedHour;
         minute = parsedMin;
+        hasExplicitTime = true;
       } else if (/\bmorning\b/i.test(lower)) {
         hour = 10;
         minute = 0;
+        hasExplicitTime = true;
       } else if (/\bafternoon\b/i.test(lower)) {
         hour = 14;
         minute = 0;
+        hasExplicitTime = true;
       } else if (/\bevening\b/i.test(lower)) {
         hour = 18; // 6:00 PM
         minute = 0;
+        hasExplicitTime = true;
       }
     }
   }
@@ -291,6 +306,8 @@ export function resolveSlotTiming(
     endTime: endIso,
     dateDisplay,
     timeDisplay,
+    hasExplicitDate,
+    hasExplicitTime,
   };
 }
 
@@ -348,6 +365,8 @@ export function detectVoiceAction(
           endTime: targetAppt.end_time || targetAppt.start_time,
           dateDisplay: new Date(targetAppt.start_time).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }),
           timeDisplay: new Date(targetAppt.start_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+          hasExplicitDate: true,
+          hasExplicitTime: true,
         }
       : resolveSlotTiming(text);
 
@@ -374,10 +393,18 @@ export function detectVoiceAction(
     const rawConsultationType = resolveConsultationType(text);
     const consultationType = rawConsultationType === "direct" ? "direct" : "virtual";
     const needsModeSelection = rawConsultationType === "unspecified";
+    const needsSlotSelection = !timing.hasExplicitDate || !timing.hasExplicitTime;
 
-    const spokenPrompt = needsModeSelection
-      ? `I can schedule an appointment with ${doctor.name} for ${timing.dateDisplay} at ${timing.timeDisplay}. Would you like me to confirm this as a Virtual Video Meet or a Direct In-Person Visit?`
-      : `I can book ${consultationType === "direct" ? "an in-person clinic visit" : "a virtual telehealth visit"} with ${doctor.name} for ${timing.dateDisplay} at ${timing.timeDisplay}. Would you like me to confirm this appointment?`;
+    let spokenPrompt: string;
+    if (needsSlotSelection && needsModeSelection) {
+      spokenPrompt = `I would be happy to schedule an appointment with ${doctor.name}. What date and time works best for you, and would you prefer a Virtual Video Meet or a Direct In-Person Visit?`;
+    } else if (needsSlotSelection) {
+      spokenPrompt = `I can schedule a ${consultationType === "direct" ? "direct in-person visit" : "virtual telehealth consultation"} with ${doctor.name}. What date and time works best for you?`;
+    } else if (needsModeSelection) {
+      spokenPrompt = `I can schedule an appointment with ${doctor.name} for ${timing.dateDisplay} at ${timing.timeDisplay}. Would you like me to confirm this as a Virtual Video Meet or a Direct In-Person Visit?`;
+    } else {
+      spokenPrompt = `I can book ${consultationType === "direct" ? "an in-person clinic visit" : "a virtual telehealth visit"} with ${doctor.name} for ${timing.dateDisplay} at ${timing.timeDisplay}. Would you like me to confirm this appointment?`;
+    }
 
     return {
       id: `act_${Date.now()}`,
@@ -389,6 +416,7 @@ export function detectVoiceAction(
       timeDisplay: timing.timeDisplay,
       consultationType,
       needsModeSelection,
+      needsSlotSelection,
       spokenPrompt,
     };
   }
@@ -397,37 +425,55 @@ export function detectVoiceAction(
 }
 
 /**
- * Detects if a message (such as an assistant confirmation question) proposes an appointment booking.
+ * Detects if an assistant message proposes a specific, complete appointment booking waiting for confirmation.
+ * Returns null if the message lacks explicit date/time or is merely an inquiry like "Would you like to schedule an appointment with him?".
  */
 export function parseProposedBookingFromText(text: string): PendingVoiceAction | null {
   if (!text) return null;
   const lower = text.toLowerCase();
 
-  const hasBookingProposal =
-    (lower.includes("schedule an appointment") ||
-      lower.includes("book an appointment") ||
-      lower.includes("schedule that appointment") ||
-      lower.includes("like to schedule") ||
-      lower.includes("lock that in") ||
-      lower.includes("confirm, you would like") ||
-      lower.includes("confirm this appointment") ||
-      lower.includes("virtual video meet or a direct in-person visit") ||
-      lower.includes("prefer a virtual video meet")) &&
-    CLINIC_DOCTORS.some((d) => {
-      const clean = d.name.replace(/^Dr\.\s*/i, "").toLowerCase();
-      const parts = clean.split(/\s+/);
-      return (
-        lower.includes(d.name.toLowerCase()) ||
-        lower.includes(clean) ||
-        parts.some((p) => p.length > 2 && lower.includes(p))
-      );
-    });
+  // If this message is already a confirmed appointment, never parse it as a pending proposal
+  if (
+    lower.includes("consultation confirmed") ||
+    lower.includes("appointment confirmed") ||
+    lower.includes("successfully scheduled")
+  ) {
+    return null;
+  }
 
-  if (!hasBookingProposal) return null;
+  // Must propose an appointment confirmation with a doctor
+  const hasProposalPhrase =
+    lower.includes("would you like me to confirm") ||
+    lower.includes("shall i lock that in") ||
+    lower.includes("lock that in") ||
+    lower.includes("confirm this appointment") ||
+    lower.includes("confirm, you would like to schedule") ||
+    lower.includes("would you prefer a virtual video meet or a direct in-person visit") ||
+    lower.includes("prefer a virtual video meet");
+
+  if (!hasProposalPhrase) return null;
+
+  const hasDoctor = CLINIC_DOCTORS.some((d) => {
+    const clean = d.name.replace(/^Dr\.\s*/i, "").toLowerCase();
+    const parts = clean.split(/\s+/);
+    return (
+      lower.includes(d.name.toLowerCase()) ||
+      lower.includes(clean) ||
+      parts.some((p) => p.length > 2 && lower.includes(p))
+    );
+  });
+
+  if (!hasDoctor) return null;
+
+  const timing = resolveSlotTiming(text);
+  // CRITICAL: A booking can ONLY be parsed for confirmation if explicit date and time were stated!
+  if (!timing.hasExplicitDate || !timing.hasExplicitTime) {
+    return null;
+  }
 
   const doctor = resolveDoctorFromText(text);
-  const timing = resolveSlotTiming(text);
   const rawConsultationType = resolveConsultationType(text);
+  const needsModeSelection = rawConsultationType === "unspecified";
   const consultationType = rawConsultationType === "direct" ? "direct" : "virtual";
 
   return {
@@ -439,6 +485,7 @@ export function parseProposedBookingFromText(text: string): PendingVoiceAction |
     dateDisplay: timing.dateDisplay,
     timeDisplay: timing.timeDisplay,
     consultationType,
+    needsModeSelection,
     spokenPrompt: `Confirmed with ${doctor.name} for ${timing.dateDisplay} at ${timing.timeDisplay}`,
   };
 }

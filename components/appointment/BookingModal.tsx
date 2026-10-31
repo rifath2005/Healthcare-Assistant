@@ -22,6 +22,7 @@ interface BookingModalProps {
   onClose: () => void;
   initialSymptoms?: string;
   initialMode?: "virtual" | "direct";
+  initialDoctorId?: string;
 }
 
 export function BookingModal({
@@ -29,9 +30,12 @@ export function BookingModal({
   onClose,
   initialSymptoms = "",
   initialMode = "virtual",
+  initialDoctorId,
 }: BookingModalProps) {
   const [doctors, setDoctors] = useState<Doctor[]>(CLINIC_DOCTORS as any);
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(CLINIC_DOCTORS[0]?.id || "");
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
+    initialDoctorId || CLINIC_DOCTORS[0]?.id || ""
+  );
   const [consultationType, setConsultationType] = useState<"virtual" | "direct">(initialMode);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [patientNotes, setPatientNotes] = useState(initialSymptoms);
@@ -44,6 +48,10 @@ export function BookingModal({
   }, [initialMode]);
 
   useEffect(() => {
+    if (initialDoctorId) setSelectedDoctorId(initialDoctorId);
+  }, [initialDoctorId]);
+
+  useEffect(() => {
     if (!isOpen) return;
 
     fetch("/api/doctors")
@@ -52,7 +60,11 @@ export function BookingModal({
         if (data.doctors && data.doctors.length > 0) {
           setDoctors(data.doctors);
           setSelectedDoctorId((prev) =>
-            prev && data.doctors.some((d: any) => d.id === prev) ? prev : data.doctors[0].id
+            initialDoctorId && data.doctors.some((d: any) => d.id === initialDoctorId)
+              ? initialDoctorId
+              : prev && data.doctors.some((d: any) => d.id === prev)
+              ? prev
+              : data.doctors[0].id
           );
         }
       })

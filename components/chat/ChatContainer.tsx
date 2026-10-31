@@ -16,6 +16,8 @@ import {
   isNegativeDecline,
   parseProposedBookingFromText,
   resolveConsultationType,
+  resolveDoctorFromText,
+  resolveSlotTiming,
   type PendingVoiceAction,
 } from "@/lib/voiceActions";
 import {
@@ -91,6 +93,7 @@ export function ChatContainer({
   const [detectedMood, setDetectedMood] = useState<string>("neutral");
   const [showBooking, setShowBooking] = useState(false);
   const [bookingMode, setBookingMode] = useState<"virtual" | "direct">("virtual");
+  const [bookingDoctorId, setBookingDoctorId] = useState<string | undefined>(undefined);
   const [showExport, setShowExport] = useState(false);
 
   // --- Voice / Talkative Mode State ---
@@ -1044,38 +1047,94 @@ export function ChatContainer({
     };
 
     // 1. Check if pending action is awaiting user confirmation or consultation mode selection
+    // 1. Pending action awaiting confirmation or parameter fulfillment
     const currentPending = pendingVoiceActionRef.current;
     if (currentPending) {
+      if (isNegativeDecline(cleanFinal)) {
+        appendUserVoiceTurn(cleanFinal);
+        cancelPendingAction();
+        return;
+      }
+
+      // Check if user is specifying slot (date/time)
+      if (currentPending.needsSlotSelection) {
+        const slotTiming = resolveSlotTiming(cleanFinal);
+        if (slotTiming.hasExplicitDate || slotTiming.hasExplicitTime) {
+          currentPending.startTime = slotTiming.startTime;
+          currentPending.endTime = slotTiming.endTime;
+          currentPending.dateDisplay = slotTiming.dateDisplay;
+          currentPending.timeDisplay = slotTiming.timeDisplay;
+          currentPending.needsSlotSelection = false;
+        }
+      }
+
+      // Check if user is specifying consultation mode
+      const chosenMode = resolveConsultationType(cleanFinal);
+      if (chosenMode === "direct" || chosenMode === "virtual") {
+        currentPending.consultationType = chosenMode;
+        currentPending.needsModeSelection = false;
+      }
+
+      // If still missing slot or mode, prompt user for what is needed:
+      if (currentPending.needsSlotSelection && currentPending.needsModeSelection) {
+        const prompt = `Please let me know what date and time you prefer, and whether you want a Virtual Video Meet or a Direct In-Person Visit with ${currentPending.doctor.name}.`;
+        appendUserVoiceTurn(cleanFinal);
+        const assistantMsg: Message = {
+          id: `ast_${Date.now()}`,
+          role: "assistant",
+          content: prompt,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        if (isVoiceModeRef.current) {
+          voiceTtsRef.current.speakConfirmationPrompt(prompt, () => {
+            if (isVoiceModeRef.current) startListeningLoop();
+          });
+        }
+        return;
+      }
+
+      if (currentPending.needsSlotSelection) {
+        const prompt = `What date and time works best for your appointment with ${currentPending.doctor.name}?`;
+        appendUserVoiceTurn(cleanFinal);
+        const assistantMsg: Message = {
+          id: `ast_${Date.now()}`,
+          role: "assistant",
+          content: prompt,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        if (isVoiceModeRef.current) {
+          voiceTtsRef.current.speakConfirmationPrompt(prompt, () => {
+            if (isVoiceModeRef.current) startListeningLoop();
+          });
+        }
+        return;
+      }
+
       if (currentPending.needsModeSelection) {
-        const mode = resolveConsultationType(cleanFinal);
-        if (mode === "direct" || mode === "virtual") {
-          currentPending.consultationType = mode;
-          currentPending.needsModeSelection = false;
-          appendUserVoiceTurn(cleanFinal);
-          executeConfirmedAction(currentPending);
-          return;
-        } else if (isAffirmativeConfirmation(cleanFinal)) {
-          // If user affirms without picking, default to virtual
-          currentPending.consultationType = "virtual";
-          currentPending.needsModeSelection = false;
-          appendUserVoiceTurn(cleanFinal);
-          executeConfirmedAction(currentPending);
-          return;
-        } else if (isNegativeDecline(cleanFinal)) {
-          appendUserVoiceTurn(cleanFinal);
-          cancelPendingAction();
-          return;
+        const prompt = `Would you like me to book this as a Virtual Video Meet or a Direct In-Person Visit with ${currentPending.doctor.name}?`;
+        appendUserVoiceTurn(cleanFinal);
+        const assistantMsg: Message = {
+          id: `ast_${Date.now()}`,
+          role: "assistant",
+          content: prompt,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        if (isVoiceModeRef.current) {
+          voiceTtsRef.current.speakConfirmationPrompt(prompt, () => {
+            if (isVoiceModeRef.current) startListeningLoop();
+          });
         }
-      } else {
-        if (isAffirmativeConfirmation(cleanFinal)) {
-          appendUserVoiceTurn(cleanFinal);
-          executeConfirmedAction(currentPending);
-          return;
-        } else if (isNegativeDecline(cleanFinal)) {
-          appendUserVoiceTurn(cleanFinal);
-          cancelPendingAction();
-          return;
-        }
+        return;
+      }
+
+      // Slot and Mode are both known! Now verify affirmative confirmation:
+      if (isAffirmativeConfirmation(cleanFinal) || chosenMode !== "unspecified") {
+        appendUserVoiceTurn(cleanFinal);
+        executeConfirmedAction(currentPending);
+        return;
       }
     }
 
@@ -1089,7 +1148,29 @@ export function ChatContainer({
         if (proposedBooking) {
           if (chosenMode !== "unspecified") {
             proposedBooking.consultationType = chosenMode;
+            proposedBooking.needsModeSelection = false;
           }
+
+          if (proposedBooking.needsModeSelection) {
+            const prompt = `Would you prefer a Virtual Video Meet or a Direct In-Person Visit with ${proposedBooking.doctor.name}?`;
+            setPendingVoiceAction(proposedBooking);
+            pendingVoiceActionRef.current = proposedBooking;
+            appendUserVoiceTurn(cleanFinal);
+            const assistantMsg: Message = {
+              id: `ast_${Date.now()}`,
+              role: "assistant",
+              content: prompt,
+              created_at: new Date().toISOString(),
+            };
+            setMessages((prev) => [...prev, assistantMsg]);
+            if (isVoiceModeRef.current) {
+              voiceTtsRef.current.speakConfirmationPrompt(prompt, () => {
+                if (isVoiceModeRef.current) startListeningLoop();
+              });
+            }
+            return;
+          }
+
           appendUserVoiceTurn(cleanFinal);
           executeConfirmedAction(proposedBooking);
           return;
@@ -1158,30 +1239,70 @@ export function ChatContainer({
     // Intercept confirmation or mode selection for pending or recently proposed bookings
     const currentPending = pendingVoiceActionRef.current;
     if (currentPending) {
+      if (isNegativeDecline(text)) {
+        cancelPendingAction();
+        return;
+      }
+
+      if (currentPending.needsSlotSelection) {
+        const slotTiming = resolveSlotTiming(text);
+        if (slotTiming.hasExplicitDate || slotTiming.hasExplicitTime) {
+          currentPending.startTime = slotTiming.startTime;
+          currentPending.endTime = slotTiming.endTime;
+          currentPending.dateDisplay = slotTiming.dateDisplay;
+          currentPending.timeDisplay = slotTiming.timeDisplay;
+          currentPending.needsSlotSelection = false;
+        }
+      }
+
+      const mode = resolveConsultationType(text);
+      if (mode === "direct" || mode === "virtual") {
+        currentPending.consultationType = mode;
+        currentPending.needsModeSelection = false;
+      }
+
+      if (currentPending.needsSlotSelection && currentPending.needsModeSelection) {
+        const prompt = `Please let me know what date and time you prefer, and whether you want a Virtual Video Meet or a Direct In-Person Visit with ${currentPending.doctor.name}.`;
+        const assistantMsg: Message = {
+          id: `ast_${Date.now()}`,
+          role: "assistant",
+          content: prompt,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        updateLoading(false);
+        return;
+      }
+
+      if (currentPending.needsSlotSelection) {
+        const prompt = `What date and time works best for your appointment with ${currentPending.doctor.name}?`;
+        const assistantMsg: Message = {
+          id: `ast_${Date.now()}`,
+          role: "assistant",
+          content: prompt,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        updateLoading(false);
+        return;
+      }
+
       if (currentPending.needsModeSelection) {
-        const mode = resolveConsultationType(text);
-        if (mode === "direct" || mode === "virtual") {
-          currentPending.consultationType = mode;
-          currentPending.needsModeSelection = false;
-          executeConfirmedAction(currentPending);
-          return;
-        } else if (isAffirmativeConfirmation(text)) {
-          currentPending.consultationType = "virtual";
-          currentPending.needsModeSelection = false;
-          executeConfirmedAction(currentPending);
-          return;
-        } else if (isNegativeDecline(text)) {
-          cancelPendingAction();
-          return;
-        }
-      } else {
-        if (isAffirmativeConfirmation(text)) {
-          executeConfirmedAction(currentPending);
-          return;
-        } else if (isNegativeDecline(text)) {
-          cancelPendingAction();
-          return;
-        }
+        const prompt = `Would you like me to book this as a Virtual Video Meet or a Direct In-Person Visit with ${currentPending.doctor.name}?`;
+        const assistantMsg: Message = {
+          id: `ast_${Date.now()}`,
+          role: "assistant",
+          content: prompt,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        updateLoading(false);
+        return;
+      }
+
+      if (isAffirmativeConfirmation(text) || mode !== "unspecified") {
+        executeConfirmedAction(currentPending);
+        return;
       }
     }
 
@@ -1194,7 +1315,24 @@ export function ChatContainer({
         if (proposedBooking) {
           if (chosenMode !== "unspecified") {
             proposedBooking.consultationType = chosenMode;
+            proposedBooking.needsModeSelection = false;
           }
+
+          if (proposedBooking.needsModeSelection) {
+            const prompt = `Would you prefer a Virtual Video Meet or a Direct In-Person Visit with ${proposedBooking.doctor.name}?`;
+            setPendingVoiceAction(proposedBooking);
+            pendingVoiceActionRef.current = proposedBooking;
+            const assistantMsg: Message = {
+              id: `ast_${Date.now()}`,
+              role: "assistant",
+              content: prompt,
+              created_at: new Date().toISOString(),
+            };
+            setMessages((prev) => [...prev, assistantMsg]);
+            updateLoading(false);
+            return;
+          }
+
           executeConfirmedAction(proposedBooking);
           return;
         }
@@ -1628,11 +1766,13 @@ export function ChatContainer({
             isTyping={isLoading && m.role === "assistant" && !m.content}
             onOpenBookingModal={(mode) => {
               const proposed = parseProposedBookingFromText(m.content);
-              if (proposed) {
+              if (proposed && !proposed.needsModeSelection && proposed.startTime) {
                 if (mode) proposed.consultationType = mode;
                 executeConfirmedAction(proposed);
                 return;
               }
+              const doc = resolveDoctorFromText(m.content);
+              if (doc?.id) setBookingDoctorId(doc.id);
               if (mode) setBookingMode(mode);
               setShowBooking(true);
             }}
@@ -1704,7 +1844,11 @@ export function ChatContainer({
       <BookingModal
         isOpen={showBooking}
         initialMode={bookingMode}
-        onClose={() => setShowBooking(false)}
+        initialDoctorId={bookingDoctorId}
+        onClose={() => {
+          setShowBooking(false);
+          setBookingDoctorId(undefined);
+        }}
       />
 
       {/* Export Summary Modal */}

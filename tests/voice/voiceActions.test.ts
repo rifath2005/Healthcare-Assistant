@@ -5,6 +5,7 @@ import {
   resolveSlotTiming,
   isAffirmativeConfirmation,
   isNegativeDecline,
+  parseProposedBookingFromText,
 } from "@/lib/voiceActions";
 
 describe("Voice Actions & Confirmation Loop", () => {
@@ -133,5 +134,21 @@ describe("Voice Actions & Confirmation Loop", () => {
     const startMs = new Date(slot.startTime).getTime();
     const endMs = new Date(slot.endTime).getTime();
     expect(endMs - startMs).toBe(30 * 60 * 1000); // exactly 30 minutes
+  });
+
+  it("does not propose confirmation for open inquiry questions without explicit date and time", () => {
+    const inquiry =
+      "Dr. Marcus Vance is our clinical psychologist who specializes in mental wellness and anxiety support. Would you like to schedule an appointment with him?";
+    const proposal = parseProposedBookingFromText(inquiry);
+    expect(proposal).toBeNull();
+  });
+
+  it("proposes confirmation only when doctor, explicit date, and explicit time are present in assistant proposal", () => {
+    const proposalMsg =
+      "I can book a virtual telehealth visit with Dr. Marcus Vance for Tuesday, November 3 at 2:00 PM. Would you like me to confirm this appointment?";
+    const proposal = parseProposedBookingFromText(proposalMsg);
+    expect(proposal).not.toBeNull();
+    expect(proposal?.doctor.name).toContain("Dr. Marcus Vance");
+    expect(proposal?.consultationType).toBe("virtual");
   });
 });
