@@ -2,7 +2,23 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { Plus, Edit2, Trash2, CheckCircle, XCircle, Stethoscope, Loader2, Save, X, KeyRound, Copy, Check } from "lucide-react";
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  Stethoscope,
+  Loader2,
+  Save,
+  X,
+  KeyRound,
+  Copy,
+  Check,
+  ShieldCheck,
+  Clock,
+  FileCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface Doctor {
@@ -14,6 +30,11 @@ interface Doctor {
   avatar_url?: string;
   is_active: boolean;
   working_hours: Record<string, { start: string; end: string }>;
+  license_number?: string;
+  qualification_proof?: string;
+  verification_status?: "pending" | "approved" | "rejected";
+  is_approved?: boolean;
+  rejection_reason?: string;
 }
 
 interface DoctorCredentials {
@@ -36,6 +57,8 @@ export default function AdminDoctorsPage() {
   const [calendarId, setCalendarId] = useState("primary");
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [qualificationProof, setQualificationProof] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [workingHoursJson, setWorkingHoursJson] = useState(
     JSON.stringify(
@@ -77,6 +100,8 @@ export default function AdminDoctorsPage() {
     setCalendarId("primary");
     setBio("");
     setAvatarUrl("");
+    setLicenseNumber("");
+    setQualificationProof("");
     setIsActive(true);
     setIsModalOpen(true);
   };
@@ -88,6 +113,8 @@ export default function AdminDoctorsPage() {
     setCalendarId(doc.calendar_id);
     setBio(doc.bio || "");
     setAvatarUrl(doc.avatar_url || "");
+    setLicenseNumber(doc.license_number || "");
+    setQualificationProof(doc.qualification_proof || "");
     setIsActive(doc.is_active);
     setWorkingHoursJson(JSON.stringify(doc.working_hours, null, 2));
     setIsModalOpen(true);
@@ -95,6 +122,13 @@ export default function AdminDoctorsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Enforce completeness
+    if (!name.trim() || !specialty.trim() || !licenseNumber.trim() || !qualificationProof.trim()) {
+      toast.error("Incomplete details: Doctor name, specialty, license number, and qualification proof are required.");
+      return;
+    }
+
     let parsedHours;
     try {
       parsedHours = JSON.parse(workingHoursJson);
@@ -110,11 +144,13 @@ export default function AdminDoctorsPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             id: editingDoctor.id,
-            name,
-            specialty,
+            name: name.trim(),
+            specialty: specialty.trim(),
             calendar_id: calendarId,
-            bio,
-            avatar_url: avatarUrl,
+            bio: bio.trim(),
+            avatar_url: avatarUrl.trim(),
+            license_number: licenseNumber.trim(),
+            qualification_proof: qualificationProof.trim(),
             is_active: isActive,
             working_hours: parsedHours,
           }),
@@ -128,11 +164,15 @@ export default function AdminDoctorsPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name,
-            specialty,
+            name: name.trim(),
+            specialty: specialty.trim(),
             calendar_id: calendarId,
-            bio,
-            avatar_url: avatarUrl,
+            bio: bio.trim(),
+            avatar_url: avatarUrl.trim(),
+            license_number: licenseNumber.trim(),
+            qualification_proof: qualificationProof.trim(),
+            verification_status: "approved",
+            is_approved: true,
             is_active: isActive,
             working_hours: parsedHours,
           }),
@@ -141,7 +181,7 @@ export default function AdminDoctorsPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed to add doctor");
 
-        toast.success("Physician registered successfully!");
+        toast.success("Physician registered and verified successfully!");
         if (data.credentials) {
           setCreatedCredentials(data.credentials);
         }
@@ -152,6 +192,38 @@ export default function AdminDoctorsPage() {
     } catch (err: any) {
       console.error("Save doctor error:", err);
       toast.error(err.message || "Failed to save physician profile");
+    }
+  };
+
+  const handleReviewAction = async (id: string, action: "approve" | "reject") => {
+    let rejectionReason = "";
+    if (action === "reject") {
+      const reason = window.prompt(
+        "Enter administrative rejection reason:",
+        "Submitted qualification documents are invalid or unverifiable."
+      );
+      if (reason === null) return; // cancelled
+      rejectionReason = reason;
+    }
+
+    try {
+      const res = await fetch("/api/admin/doctors", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          action,
+          rejection_reason: rejectionReason,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Failed to ${action} doctor`);
+
+      toast.success(`Doctor ${action === "approve" ? "approved" : "rejected"} successfully`);
+      loadDoctors();
+    } catch (err: any) {
+      toast.error(err.message || `Failed to ${action} doctor`);
     }
   };
 
@@ -184,13 +256,13 @@ export default function AdminDoctorsPage() {
             Physicians &amp; Specialists Directory
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Configure physician profiles, calendar delegation IDs, and working hours
+            Review qualifications, verify credentials, and manage doctor visibility
           </p>
         </div>
 
         <button
           onClick={openCreateModal}
-          className="py-2.5 px-4 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2 shadow-sm transition-colors"
+          className="py-2.5 px-4 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2 shadow-xs transition-colors"
         >
           <Plus className="w-4 h-4" />
           Add Physician
@@ -215,10 +287,14 @@ export default function AdminDoctorsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {doctors.map((doc) => {
             const loginEmail = `${doc.name.toLowerCase().replace(/[^a-z]/g, "")}@healthcare.local`;
+            const isApproved = doc.is_approved && doc.verification_status === "approved";
+            const isPending = doc.verification_status === "pending";
+            const isRejected = doc.verification_status === "rejected";
+
             return (
               <div
                 key={doc.id}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm hover:shadow-md transition-shadow space-y-3"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs hover:shadow-md transition-shadow space-y-3.5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -242,14 +318,29 @@ export default function AdminDoctorsPage() {
                       </p>
                     </div>
                   </div>
+
+                  {/* Verification Status Badge */}
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      doc.is_active
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 ${
+                      isApproved
                         ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                        : isPending
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                        : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
                     }`}
                   >
-                    {doc.is_active ? "Active" : "Inactive"}
+                    {isApproved ? (
+                      <CheckCircle className="w-3 h-3" />
+                    ) : isPending ? (
+                      <Clock className="w-3 h-3" />
+                    ) : (
+                      <XCircle className="w-3 h-3" />
+                    )}
+                    {isApproved
+                      ? "Approved"
+                      : isPending
+                      ? "Pending Review"
+                      : "Rejected / Unverified"}
                   </span>
                 </div>
 
@@ -259,11 +350,32 @@ export default function AdminDoctorsPage() {
                   </p>
                 )}
 
+                {/* Proof of Qualification Details */}
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-[11px] space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-semibold">
+                    <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Proof of Qualification:</span>
+                  </div>
+                  <div className="text-slate-600 dark:text-slate-400 text-[11px]">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">License: </span>
+                    <span className="font-mono">{doc.license_number || "Not provided"}</span>
+                  </div>
+                  <div className="text-slate-600 dark:text-slate-400 text-[11px] line-clamp-2">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">Document/Proof: </span>
+                    <span>{doc.qualification_proof || "Not submitted"}</span>
+                  </div>
+                  {isRejected && doc.rejection_reason && (
+                    <div className="text-red-600 dark:text-red-400 text-[10px] pt-1 border-t border-red-100 dark:border-red-900/40">
+                      Reason: {doc.rejection_reason}
+                    </div>
+                  )}
+                </div>
+
                 {/* Login Credentials Box */}
                 <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-[11px] space-y-1">
                   <div className="font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
                     <span className="flex items-center gap-1">
-                      <KeyRound className="w-3 h-3 text-emerald-600" /> Provider Portal Login:
+                      <KeyRound className="w-3 h-3 text-emerald-600" /> Portal Login:
                     </span>
                     <span className="text-emerald-600 dark:text-emerald-400 font-mono font-bold">
                       PIN: Doctor@2026
@@ -274,19 +386,39 @@ export default function AdminDoctorsPage() {
                   </div>
                 </div>
 
-                <div className="text-[11px] text-slate-500 font-mono">
-                  Calendar ID: {doc.calendar_id}
-                </div>
-
+                {/* Admin Verification Review Actions */}
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  {!isApproved && (
+                    <button
+                      type="button"
+                      onClick={() => handleReviewAction(doc.id, "approve")}
+                      className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center justify-center gap-1 shadow-xs transition-colors"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Approve
+                    </button>
+                  )}
+
+                  {!isRejected && (
+                    <button
+                      type="button"
+                      onClick={() => handleReviewAction(doc.id, "reject")}
+                      className="flex-1 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-950/60 text-red-700 dark:text-red-300 text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      Reject
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => openEditModal(doc)}
-                    className="flex-1 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center gap-1.5"
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300"
+                    title="Edit profile"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
-                    Edit
                   </button>
+
                   <button
                     type="button"
                     onClick={() => handleDelete(doc.id)}
@@ -381,7 +513,9 @@ export default function AdminDoctorsPage() {
 
             <form onSubmit={handleSave} className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold pb-1">Doctor Name</label>
+                <label className="block font-semibold pb-1">
+                  Doctor Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
@@ -393,13 +527,43 @@ export default function AdminDoctorsPage() {
               </div>
 
               <div>
-                <label className="block font-semibold pb-1">Medical Specialty</label>
+                <label className="block font-semibold pb-1">
+                  Medical Specialty <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={specialty}
                   onChange={(e) => setSpecialty(e.target.value)}
                   placeholder="Internal Medicine / Cardiology / Dermatology"
+                  className="w-full px-3 py-2 border rounded-xl dark:bg-slate-800 dark:border-slate-700"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold pb-1">
+                  Medical License Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={licenseNumber}
+                  onChange={(e) => setLicenseNumber(e.target.value)}
+                  placeholder="e.g. MD-LIC-2024-9912"
+                  className="w-full px-3 py-2 border rounded-xl dark:bg-slate-800 dark:border-slate-700"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold pb-1">
+                  Proof of Qualification (License/Certificate document) <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={2}
+                  required
+                  value={qualificationProof}
+                  onChange={(e) => setQualificationProof(e.target.value)}
+                  placeholder="e.g. State Medical Board Certified License & ABIM Fellowship Certificate"
                   className="w-full px-3 py-2 border rounded-xl dark:bg-slate-800 dark:border-slate-700"
                 />
               </div>
@@ -444,7 +608,7 @@ export default function AdminDoctorsPage() {
               <div>
                 <label className="block font-semibold pb-1">Working Hours (JSON)</label>
                 <textarea
-                  rows={5}
+                  rows={4}
                   value={workingHoursJson}
                   onChange={(e) => setWorkingHoursJson(e.target.value)}
                   className="w-full font-mono text-[11px] px-3 py-2 border rounded-xl dark:bg-slate-800 dark:border-slate-700"

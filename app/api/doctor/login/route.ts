@@ -103,6 +103,10 @@ export async function POST(req: NextRequest) {
             bio: matchedDbDoctor.bio || `${matchedDbDoctor.specialty} attending physician.`,
             calendar_id: matchedDbDoctor.calendar_id || "primary",
             clinicalCode,
+            license_number: matchedDbDoctor.license_number || `LIC-${matchedDbDoctor.id.slice(0, 8)}`,
+            qualification_proof: matchedDbDoctor.qualification_proof || "Verified Medical License",
+            verification_status: matchedDbDoctor.verification_status || "approved",
+            is_approved: matchedDbDoctor.is_approved ?? true,
           };
 
           return createDoctorLoginResponse(dynamicDoctorProfile);

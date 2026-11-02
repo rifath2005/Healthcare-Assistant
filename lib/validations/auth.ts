@@ -2,6 +2,20 @@ import { z } from "zod";
 
 export const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
 
+export const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email("Please provide a valid email address");
+
+export function validateEmailFormat(email: string): { isValid: boolean; normalized?: string; error?: string } {
+  const result = emailSchema.safeParse(email);
+  if (!result.success) {
+    return { isValid: false, error: result.error.issues[0]?.message || "Invalid email format" };
+  }
+  return { isValid: true, normalized: result.data };
+}
+
 export const signupSchema = z
   .object({
     fullName: z
@@ -10,11 +24,7 @@ export const signupSchema = z
       .min(2, "Full name must be at least 2 characters")
       .max(50, "Full name cannot exceed 50 characters")
       .regex(/^[a-zA-Z\s.'-]+$/, "Full name must only contain letters, spaces, dots, hyphens, or apostrophes"),
-    email: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .email("Please provide a valid email address"),
+    email: emailSchema,
     password: z
       .string()
       .min(8, "Password must be at least 8 characters long")
@@ -35,11 +45,7 @@ export const signupSchema = z
 export type SignupInput = z.infer<typeof signupSchema>;
 
 export const loginSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .email("Please provide a valid email address"),
+  email: emailSchema,
   password: z.string().min(1, "Password is required"),
   rememberMe: z.boolean().optional().default(false),
 });
@@ -47,11 +53,7 @@ export const loginSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>;
 
 export const forgotPasswordSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .email("Please provide a valid email address"),
+  email: emailSchema,
 });
 
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;

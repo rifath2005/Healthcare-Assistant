@@ -6,13 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginInput } from "@/lib/validations/auth";
+import { validateEmailGate } from "@/lib/validationArchitecture";
 import { FormField } from "@/components/ui/FormField";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { BotProtection } from "@/components/auth/BotProtection";
 import { createClient } from "@/lib/supabase/client";
 import { syncGuestSession } from "@/lib/supabase/syncGuestSession";
-import { HeartPulse, Loader2, AlertCircle } from "lucide-react";
+import { HeartPulse, Loader2, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -25,22 +26,72 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
 
+  // Email-first flow state
+  const [emailInput, setEmailInput] = useState("");
+  const [emailValidated, setEmailValidated] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
     mode: "onChange",
   });
 
+  // Handle email step validation
+  const handleValidateEmail = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setEmailError(null);
+    setServerError(null);
+
+    const validation = validateEmailGate(emailInput);
+    if (!validation.isValid) {
+      setEmailValidated(false);
+      setEmailError(validation.error || "Please provide a correctly formatted email address.");
+      return false;
+    }
+
+    setEmailValidated(true);
+    setEmailError(null);
+    setValue("email", validation.normalizedEmail || emailInput.trim().toLowerCase(), {
+      shouldValidate: true,
+    });
+    return true;
+  };
+
+  const handleEmailChange = (val: string) => {
+    setEmailInput(val);
+    setEmailError(null);
+    // If user modifies an already validated email, re-check format
+    const validation = validateEmailGate(val);
+    if (!validation.isValid) {
+      setEmailValidated(false);
+    } else {
+      setEmailValidated(true);
+      setValue("email", validation.normalizedEmail || val.trim().toLowerCase(), {
+        shouldValidate: true,
+      });
+    }
+  };
+
   const onSubmit = async (data: LoginInput) => {
+    // Strictly verify email gate before any login attempt
+    const emailGate = validateEmailGate(data.email);
+    if (!emailGate.isValid) {
+      setEmailValidated(false);
+      setEmailError(emailGate.error || "Invalid email address.");
+      return;
+    }
+
     setServerError(null);
     setUnverifiedEmail(null);
     setLoading(true);
 
     try {
-      const normalizedEmail = data.email.trim().toLowerCase();
+      const normalizedEmail = emailGate.normalizedEmail || data.email.trim().toLowerCase();
       const supabase = createClient();
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
@@ -64,6 +115,24 @@ export default function LoginPage() {
 
       if (authData.user) {
         await syncGuestSession(authData.user.id);
+
+        // Mandatory Health Profile Gate: User must not reach main page without complete profile
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_profile_complete, health_issues, age")
+          .eq("id", authData.user.id)
+          .single();
+
+        const isProfileComplete =
+          profile?.is_profile_complete === true ||
+          (Boolean(profile?.health_issues && profile?.age)) ||
+          authData.user.user_metadata?.is_profile_complete === true;
+
+        if (!isProfileComplete) {
+          toast.info("Please describe your health concerns and complete your profile.");
+          window.location.href = "/profile";
+          return;
+        }
       }
 
       window.location.href = redirectDestination;
@@ -130,53 +199,97 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* Login Form with Email-First Flow */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            label="Email Address"
-            type="email"
-            placeholder="jane@example.com"
-            helperText="Email is automatically formatted to lowercase"
-            error={errors.email?.message}
-            {...register("email")}
-          />
-
-          <PasswordInput
-            label="Password"
-            placeholder="••••••••"
-            error={errors.password?.message}
-            {...register("password")}
-          />
-
-          <div className="flex items-center justify-between text-xs pt-1">
-            <div className="flex items-center gap-2">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Email Address
+            </label>
+            <div className="relative">
               <input
-                type="checkbox"
-                id="rememberMe"
-                className="w-4 h-4 rounded text-emerald-600 border-slate-300 dark:border-slate-700 dark:bg-slate-800 focus:ring-emerald-500"
-                {...register("rememberMe")}
+                type="email"
+                placeholder="jane@example.com"
+                value={emailInput}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                onBlur={() => {
+                  if (emailInput.trim()) {
+                    handleValidateEmail();
+                  }
+                }}
+                className={`w-full px-4 py-2.5 rounded-xl border text-sm transition-all focus:outline-none focus:ring-2 ${
+                  emailError
+                    ? "border-red-500 focus:ring-red-500/20 text-red-900 dark:text-red-300 bg-red-50/30"
+                    : emailValidated
+                    ? "border-emerald-500 focus:ring-emerald-500/20 dark:bg-slate-800"
+                    : "border-slate-300 dark:border-slate-700 dark:bg-slate-800 focus:ring-emerald-500/20 focus:border-emerald-500"
+                }`}
               />
-              <label htmlFor="rememberMe" className="text-slate-600 dark:text-slate-400 select-none">
-                Remember me
-              </label>
+              {emailValidated && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              )}
             </div>
-            <Link
-              href="/forgot-password"
-              className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
-            >
-              Forgot password?
-            </Link>
+            {emailError ? (
+              <p className="text-[11px] text-red-500 font-medium">{emailError}</p>
+            ) : (
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                Enter your registered healthcare account email to proceed
+              </p>
+            )}
           </div>
 
-          <BotProtection />
+          {/* Email-First Gate: Password input must not appear until email is validated */}
+          {!emailValidated ? (
+            <button
+              type="button"
+              onClick={() => handleValidateEmail()}
+              className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+            >
+              <span>Continue with Email</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <PasswordInput
+                label="Password"
+                placeholder="••••••••"
+                error={errors.password?.message}
+                {...register("password")}
+              />
 
-          <button
-            type="submit"
-            disabled={loading || isSubmitting}
-            className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-emerald-600/20"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            Sign In
-          </button>
+              <div className="flex items-center justify-between text-xs pt-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="rememberMe"
+                    className="w-4 h-4 rounded text-emerald-600 border-slate-300 dark:border-slate-700 dark:bg-slate-800 focus:ring-emerald-500"
+                    {...register("rememberMe")}
+                  />
+                  <label htmlFor="rememberMe" className="text-slate-600 dark:text-slate-400 select-none">
+                    Remember me
+                  </label>
+                </div>
+                <Link
+                  href="/forgot-password"
+                  className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+
+              <BotProtection />
+
+              <button
+                type="submit"
+                disabled={loading || isSubmitting || !emailValidated}
+                className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-emerald-600/20"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Sign In
+              </button>
+            </div>
+          )}
         </form>
 
         <div className="relative my-4">

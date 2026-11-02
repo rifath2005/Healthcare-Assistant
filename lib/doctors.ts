@@ -9,6 +9,13 @@ export interface DoctorProfile {
   calendar_id: string;
   clinicalCode: string;
   meetLink?: string;
+  license_number: string;
+  qualification_proof: string;
+  verification_status: "pending" | "approved" | "rejected";
+  is_approved: boolean;
+  is_active?: boolean;
+  working_hours?: Record<string, { start: string; end: string }>;
+  rejection_reason?: string;
 }
 
 export const CLINIC_DOCTORS: DoctorProfile[] = [
@@ -22,6 +29,11 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     bio: "Board-certified internist with 12 years of clinical experience in preventative medicine, chronic symptom triage, and family health.",
     calendar_id: "primary",
     clinicalCode: "DR-ROSTOVA-102",
+    license_number: "MD-LIC-2024-8841",
+    qualification_proof: "Verified State Medical Board License & ABIM Board Certification in Internal Medicine",
+    verification_status: "approved",
+    is_approved: true,
+    is_active: true,
   },
   {
     id: "22222222-2222-2222-2222-222222222222",
@@ -33,6 +45,11 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     bio: "Specialist in anxiety disorders, stress resilience, acute trauma intervention, and behavioral grounding therapies.",
     calendar_id: "primary",
     clinicalCode: "DR-VANCE-305",
+    license_number: "PSY-LIC-2023-4102",
+    qualification_proof: "Verified Clinical Psychology State License & APA Certified Doctorate in Psychology",
+    verification_status: "approved",
+    is_approved: true,
+    is_active: true,
   },
   {
     id: "33333333-3333-3333-3333-333333333333",
@@ -44,6 +61,11 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     bio: "Fellow of the American College of Cardiology specializing in heart health, hypertension management, and lifestyle medicine.",
     calendar_id: "primary",
     clinicalCode: "DR-LIN-204",
+    license_number: "CARD-LIC-2024-9022",
+    qualification_proof: "Verified Medical License & Board Certification in Cardiovascular Disease",
+    verification_status: "approved",
+    is_approved: true,
+    is_active: true,
   },
   {
     id: "4ed011cc-c663-4573-84e7-4310735b63f9",
@@ -55,8 +77,19 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     bio: "Board-certified dermatologist specializing in clinical dermatology, inflammatory skin triage, and preventative skin health.",
     calendar_id: "primary",
     clinicalCode: "DR-RIVERA-301",
+    license_number: "DERM-LIC-2023-7729",
+    qualification_proof: "Verified State Medical Board License & American Board of Dermatology Certification",
+    verification_status: "approved",
+    is_approved: true,
+    is_active: true,
   },
 ];
+
+export function getApprovedDoctors(): DoctorProfile[] {
+  return CLINIC_DOCTORS.filter(
+    (d) => d.verification_status === "approved" && d.is_approved === true && d.is_active !== false
+  );
+}
 
 export function getDoctorById(id: string): DoctorProfile | undefined {
   return CLINIC_DOCTORS.find((d) => d.id === id);

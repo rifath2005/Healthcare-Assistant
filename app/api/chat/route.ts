@@ -166,17 +166,51 @@ export async function POST(req: NextRequest) {
         .join("\n\n");
     }
 
-    // 5. Construct Defensive Grounded Prompt
-    let defensivePrompt = formatDefensivePrompt(sanitizedInput, contextPassage);
-    if (isVoiceMode) {
-      defensivePrompt += `\n\n<voice_mode_brevity_directive>\nSPOKEN VOICE CONVERSATION ACTIVE: You are talking directly through text-to-speech audio. Provide ONLY 1 to 2 short conversational sentences (under 30 words total). End with a single brief question so the user can easily respond. NEVER output lists, bullet points, or markdown.\n</voice_mode_brevity_directive>`;
-    }
-
-    // 6. Check user session for persistence
+    // 5. Check user session and fetch health profile for clinical context
     const supabase = createServerSupabaseClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    let patientProfileDirective = "";
+    if (user) {
+      const meta = user.user_metadata || {};
+      let healthIssues = meta.health_issues || "";
+      let patientAge = meta.age || null;
+      let gender = meta.gender || "";
+      let history = meta.medical_history || "";
+      let allergies = meta.allergies || "";
+      let medications = meta.medications || "";
+
+      try {
+        const { data: dbProfile } = await supabase
+          .from("profiles")
+          .select("health_issues, age, gender, medical_history, allergies, medications")
+          .eq("id", user.id)
+          .single();
+
+        if (dbProfile) {
+          healthIssues = dbProfile.health_issues || healthIssues;
+          patientAge = dbProfile.age || patientAge;
+          gender = dbProfile.gender || gender;
+          history = dbProfile.medical_history || history;
+          allergies = dbProfile.allergies || allergies;
+          medications = dbProfile.medications || medications;
+        }
+      } catch (profErr) {
+        console.warn("Notice loading profile context in chat route:", profErr);
+      }
+
+      if (healthIssues || patientAge) {
+        patientProfileDirective = `\n\n<patient_health_profile>\nPatient Age: ${patientAge || "Unspecified"}\nGender: ${gender || "Unspecified"}\nStated Primary Health Issue / Symptoms: ${healthIssues || "None specified"}\nMedical History & Pre-existing Conditions: ${history || "None reported"}\nAllergies: ${allergies || "None"}\nMedications: ${medications || "None"}\n</patient_health_profile>\nCLINICAL CONTEXT DIRECTIVE: The user has completed their mandatory health profile above. You MUST ground your clinical responses in their stated health issues, age, and medical history. Personalize triage and physician recommendations accordingly.`;
+      }
+    }
+
+    // 6. Construct Defensive Grounded Prompt
+    let defensivePrompt = formatDefensivePrompt(sanitizedInput, contextPassage) + patientProfileDirective;
+    if (isVoiceMode) {
+      defensivePrompt += `\n\n<voice_mode_brevity_directive>\nSPOKEN VOICE CONVERSATION ACTIVE: You are talking directly through text-to-speech audio. Provide ONLY 1 to 2 short conversational sentences (under 30 words total). End with a single brief question so the user can easily respond. NEVER output lists, bullet points, or markdown.\n</voice_mode_brevity_directive>`;
+    }
 
     // Auto-create conversation thread if user is authenticated and conversationId was not provided
     let activeConversationId = conversationId;

@@ -25,6 +25,11 @@ export async function GET(req: NextRequest) {
       bio: clinicDoc?.bio || "Board-certified healthcare specialist.",
       calendar_id: clinicDoc?.calendar_id || "primary",
       clinicalCode: clinicDoc?.clinicalCode || `DR-${doctor.id.slice(0, 4).toUpperCase()}`,
+      license_number: clinicDoc?.license_number || "",
+      qualification_proof: clinicDoc?.qualification_proof || "",
+      verification_status: clinicDoc?.verification_status || "pending",
+      is_approved: clinicDoc?.is_approved ?? false,
+      rejection_reason: clinicDoc?.rejection_reason || null,
       isAdmin: doctor.isAdmin,
     };
 

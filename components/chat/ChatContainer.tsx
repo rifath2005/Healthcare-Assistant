@@ -363,7 +363,7 @@ export function ChatContainer({
         }
       }
 
-      // Guest mode fallback or initial reset
+      // Guest mode fallback or initial reset with personalized health profile
       if (isMounted) {
         // Authenticated users start fresh on new consultation; guest storage ONLY for unauthenticated users
         if (!userId && !conversationId) {
@@ -374,6 +374,27 @@ export function ChatContainer({
             return;
           }
         }
+
+        // If user has completed their mandatory health profile, reflect what they said in the initial message
+        try {
+          const profileRes = await fetch("/api/profile");
+          const profileData = await profileRes.json();
+          if (profileData?.profile?.health_issues && isMounted) {
+            const p = profileData.profile;
+            setMessages([
+              {
+                id: "welcome-msg",
+                role: "assistant",
+                content: `Hello! I have reviewed your clinical profile regarding your stated concern: **"${p.health_issues}"**${p.age ? ` (Age: ${p.age})` : ""}.\n\nHow are your symptoms feeling right now? Please feel free to share any changes, or let me know if you would like me to connect you with one of our clinic specialists.`,
+              },
+            ]);
+            setCrisisState({ triggered: false });
+            return;
+          }
+        } catch {
+          // fallback to default welcome message
+        }
+
         setMessages([INITIAL_WELCOME_MESSAGE]);
         setCrisisState({ triggered: false });
       }

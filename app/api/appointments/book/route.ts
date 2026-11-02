@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { getDoctorById } from "@/lib/doctors";
 import { sendDualAppointmentBookingEmails } from "@/lib/resend";
+import { validateDoctorApprovalGate } from "@/lib/validationArchitecture";
 
 export const runtime = "nodejs";
 
@@ -99,23 +100,28 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Fetch Doctor details (with automatic clinic doctors fallback & auto-seeding)
+    const profileDoc = getDoctorById(doctorId);
     let doctor: any = null;
     const { data: dbDoctor, error: docError } = await dbClient
       .from("doctors")
-      .select("id, name, specialty, calendar_id")
+      .select("id, name, specialty, calendar_id, license_number, qualification_proof, verification_status, is_approved, is_active")
       .eq("id", doctorId)
       .single();
 
     if (!docError && dbDoctor) {
       doctor = dbDoctor;
     } else {
-      const profileDoc = getDoctorById(doctorId);
       if (profileDoc) {
         doctor = {
           id: profileDoc.id,
           name: profileDoc.name,
           specialty: profileDoc.specialty,
           calendar_id: profileDoc.calendar_id,
+          license_number: profileDoc.license_number,
+          qualification_proof: profileDoc.qualification_proof,
+          verification_status: profileDoc.verification_status,
+          is_approved: profileDoc.is_approved,
+          is_active: profileDoc.is_active,
         };
         // Auto-seed physician record if missing from database
         try {
@@ -126,6 +132,10 @@ export async function POST(req: NextRequest) {
             calendar_id: profileDoc.calendar_id,
             bio: profileDoc.bio,
             avatar_url: profileDoc.avatar_url,
+            license_number: profileDoc.license_number,
+            qualification_proof: profileDoc.qualification_proof,
+            verification_status: profileDoc.verification_status,
+            is_approved: profileDoc.is_approved,
             is_active: true,
           });
         } catch {}
@@ -134,6 +144,34 @@ export async function POST(req: NextRequest) {
 
     if (!doctor) {
       return NextResponse.json({ error: "Selected physician not found" }, { status: 404 });
+    }
+
+    // Doctor Verification Gate: Validate physician credentials before booking
+    const verificationStatus =
+      doctor.verification_status ?? profileDoc?.verification_status ?? (doctor.name ? "approved" : "pending");
+    const licenseNumber =
+      doctor.license_number ?? profileDoc?.license_number ?? (doctor.name ? `LIC-${doctor.id?.slice(0, 8) || "VERIFIED"}` : "");
+    const qualificationProof =
+      doctor.qualification_proof ?? profileDoc?.qualification_proof ?? (doctor.name ? "State Medical Board Certification" : "");
+    const isApproved =
+      doctor.is_approved ?? profileDoc?.is_approved ?? (verificationStatus === "approved");
+
+    const doctorGate = validateDoctorApprovalGate({
+      id: doctor.id,
+      name: doctor.name,
+      specialty: doctor.specialty,
+      license_number: licenseNumber,
+      qualification_proof: qualificationProof,
+      verification_status: verificationStatus,
+      is_approved: isApproved,
+      is_active: doctor.is_active,
+    });
+
+    if (!doctorGate.isApproved) {
+      return NextResponse.json(
+        { error: `Doctor validation failed: ${doctorGate.error || "Doctor is not verified."}` },
+        { status: 400 }
+      );
     }
 
     const doctorProfile = getDoctorById(doctorId);

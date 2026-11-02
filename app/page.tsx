@@ -53,13 +53,32 @@ export default function HomePage() {
     // Check active session safely
     supabase.auth
       .getUser()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (!isMounted) return;
         clearTimeout(authTimer);
         if (!data?.user) {
           router.replace("/login");
           return;
         }
+
+        // Mandatory Health Profile Gate: check if user completed their profile
+        const meta = data.user.user_metadata || {};
+        const isCompleteInMeta = meta.is_profile_complete === true || Boolean(meta.health_issues && meta.age);
+
+        if (!isCompleteInMeta) {
+          try {
+            const res = await fetch("/api/profile");
+            const profData = await res.json();
+            if (!profData?.profile?.is_profile_complete) {
+              router.replace("/profile");
+              return;
+            }
+          } catch {
+            router.replace("/profile");
+            return;
+          }
+        }
+
         setUser(data.user);
         setLoadingUser(false);
       })

@@ -52,6 +52,7 @@ export async function middleware(request: NextRequest) {
     isAuthRoute ||
     pathname === "/terms" ||
     pathname === "/privacy" ||
+    pathname === "/profile" ||
     pathname === "/doctor/login" ||
     pathname === "/admin/login" ||
     pathname.startsWith("/auth/callback");
@@ -91,9 +92,18 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // 2. If authenticated and attempting to view login/signup -> redirect to home (conversation page)
+  // Mandatory Profile Gate: User must complete health profile before reaching main page '/'
+  const isProfileComplete = user?.user_metadata?.is_profile_complete === true;
+
+  // 2. If authenticated and attempting to view login/signup -> redirect appropriately
   if (user && isAuthRoute) {
-    url.pathname = "/";
+    url.pathname = isProfileComplete ? "/" : "/profile";
+    return createRedirectResponse(url);
+  }
+
+  // 3. If authenticated and attempting to access root '/' without completed health profile -> redirect to /profile
+  if (user && pathname === "/" && !isProfileComplete) {
+    url.pathname = "/profile";
     return createRedirectResponse(url);
   }
 
