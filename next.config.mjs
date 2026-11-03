@@ -4,7 +4,14 @@ const nextConfig = {
   output: process.env.NODE_ENV === "production" && !process.env.VERCEL ? "standalone" : undefined,
   experimental: {
     serverComponentsExternalPackages: ["@google/generative-ai"],
-    optimizePackageImports: ["lucide-react", "date-fns"],
+    optimizePackageImports: [
+      "lucide-react",
+      "date-fns",
+      "date-fns-tz",
+      "clsx",
+      "tailwind-merge",
+      "sonner",
+    ],
   },
   images: {
     remotePatterns: [
@@ -21,6 +28,12 @@ const nextConfig = {
       config.output = {
         ...config.output,
         chunkLoadTimeout: 60000,
+      };
+
+      // Ignore watching build artifacts and VCS files to prevent dev server thrashing
+      config.watchOptions = {
+        poll: false,
+        ignored: ["**/node_modules", "**/.git", "**/.next"],
       };
     }
     return config;

@@ -18,48 +18,7 @@ export interface AuthenticatedDoctor {
  * 3. Header fallback in development/test mode
  */
 export async function getAuthenticatedDoctor(req?: NextRequest): Promise<AuthenticatedDoctor | null> {
-  // 1. Check Supabase Auth user session first
-  try {
-    const supabase = createServerSupabaseClient();
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
-
-    if (!authErr && user) {
-      // Check if user is an administrator
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.role === "admin") {
-        return {
-          id: user.id,
-          name: "Administrator",
-          isAdmin: true,
-        };
-      }
-
-      // Check if user is linked to a doctor record
-      const { data: doctorRecord } = await supabase
-        .from("doctors")
-        .select("id, name, specialty")
-        .eq("id", user.id)
-        .single();
-
-      if (doctorRecord) {
-        return {
-          id: doctorRecord.id,
-          name: doctorRecord.name,
-          specialty: doctorRecord.specialty,
-          isAdmin: false,
-        };
-      }
-    }
-  } catch {
-    // Continue to cookie check
-  }
-
-  // 2. Check doctor_session or doctor_id cookie
+  // 1. Fast-Path: Check local doctor_session or doctor_id cookie first
   try {
     let cookieStore: any;
     try {
@@ -114,6 +73,54 @@ export async function getAuthenticatedDoctor(req?: NextRequest): Promise<Authent
     }
   } catch {
     // ignore cookie reading errors
+  }
+
+  // 2. Check Supabase Auth user session only if Supabase auth cookies are present
+  try {
+    const rawCookieHeader = req?.headers.get("cookie") || "";
+    const hasSupabaseCookie =
+      rawCookieHeader.includes("sb-") ||
+      (req?.cookies ? req.cookies.getAll().some((c) => c.name.startsWith("sb-")) : false);
+
+    if (hasSupabaseCookie) {
+      const supabase = createServerSupabaseClient();
+      const { data: { user }, error: authErr } = await supabase.auth.getUser();
+
+      if (!authErr && user) {
+        // Check if user is an administrator
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (profile?.role === "admin") {
+          return {
+            id: user.id,
+            name: "Administrator",
+            isAdmin: true,
+          };
+        }
+
+        // Check if user is linked to a doctor record
+        const { data: doctorRecord } = await supabase
+          .from("doctors")
+          .select("id, name, specialty")
+          .eq("id", user.id)
+          .single();
+
+        if (doctorRecord) {
+          return {
+            id: doctorRecord.id,
+            name: doctorRecord.name,
+            specialty: doctorRecord.specialty,
+            isAdmin: false,
+          };
+        }
+      }
+    }
+  } catch {
+    // Continue to dev fallback check
   }
 
   // 3. Dev / Test mode fallback

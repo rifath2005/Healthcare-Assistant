@@ -28,13 +28,20 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Revalidate auth token with getUser() safely
+  // Fast-path: Only invoke remote getUser() if a Supabase authentication cookie is present
+  const allCookies = request.cookies.getAll();
+  const hasAuthCookie = allCookies.some(
+    (c) => c.name.startsWith("sb-") && (c.name.includes("-auth-token") || c.name.endsWith("-token"))
+  );
+
   let user = null;
-  try {
-    const { data } = await supabase.auth.getUser();
-    user = data?.user || null;
-  } catch {
-    user = null;
+  if (hasAuthCookie) {
+    try {
+      const { data } = await supabase.auth.getUser();
+      user = data?.user || null;
+    } catch {
+      user = null;
+    }
   }
 
   const url = request.nextUrl.clone();
@@ -147,6 +154,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next|favicon.ico|icon|manifest.json|api/|data/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|_next|favicon.ico|icon|manifest.json|api/|data/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map)$).*)",
   ],
 };
