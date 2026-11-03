@@ -63,15 +63,20 @@ export default function LoginPage() {
   };
 
   const handleEmailChange = (val: string) => {
-    setEmailInput(val);
+    // Automatically convert uppercase to lowercase and strip whitespace
+    const clean = val.toLowerCase().replace(/\s+/g, "");
+    setEmailInput(clean);
     setEmailError(null);
+    setServerError(null);
+
     // If user modifies an already validated email, re-check format
-    const validation = validateEmailGate(val);
+    const validation = validateEmailGate(clean);
     if (!validation.isValid) {
       setEmailValidated(false);
+      setValue("email", "");
     } else {
       setEmailValidated(true);
-      setValue("email", validation.normalizedEmail || val.trim().toLowerCase(), {
+      setValue("email", validation.normalizedEmail || clean, {
         shouldValidate: true,
       });
     }
@@ -211,6 +216,12 @@ export default function LoginPage() {
                 placeholder="jane@example.com"
                 value={emailInput}
                 onChange={(e) => handleEmailChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleValidateEmail();
+                  }
+                }}
                 onBlur={() => {
                   if (emailInput.trim()) {
                     handleValidateEmail();

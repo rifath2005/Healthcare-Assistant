@@ -2,18 +2,63 @@ import { z } from "zod";
 
 export const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
 
+/**
+ * Strict RFC 5322 compliant email regex:
+ * Requires valid local part, @, domain name with dots, and at least 2 alpha char TLD.
+ * Forbids internal spaces and consecutive dots.
+ */
+export const STRICT_EMAIL_REGEX = /^[a-z0-9](?:[a-z0-9._%+-]*[a-z0-9])?@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i;
+
+export function isValidEmailFormat(email: unknown): boolean {
+  if (!email || typeof email !== "string") return false;
+  const clean = email.trim().toLowerCase();
+  if (clean.length < 5 || clean.length > 254) return false;
+  if (/\s/.test(clean)) return false;
+  if (clean.includes("..")) return false;
+  return STRICT_EMAIL_REGEX.test(clean);
+}
+
 export const emailSchema = z
   .string()
   .trim()
   .toLowerCase()
-  .email("Please provide a valid email address");
+  .refine((val) => isValidEmailFormat(val), {
+    message: "Please provide a valid, correctly formatted email address (e.g. name@domain.com)",
+  });
 
-export function validateEmailFormat(email: string): { isValid: boolean; normalized?: string; error?: string } {
-  const result = emailSchema.safeParse(email);
-  if (!result.success) {
-    return { isValid: false, error: result.error.issues[0]?.message || "Invalid email format" };
+export function validateEmailFormat(email: string | null | undefined): {
+  isValid: boolean;
+  normalized?: string;
+  error?: string;
+} {
+  if (!email || typeof email !== "string" || !email.trim()) {
+    return { isValid: false, error: "Email address is required." };
   }
-  return { isValid: true, normalized: result.data };
+
+  const clean = email.trim().toLowerCase();
+
+  if (/\s/.test(clean)) {
+    return {
+      isValid: false,
+      error: "Email address cannot contain spaces.",
+    };
+  }
+
+  if (clean.includes("..")) {
+    return {
+      isValid: false,
+      error: "Email address cannot contain consecutive dots.",
+    };
+  }
+
+  if (!isValidEmailFormat(clean)) {
+    return {
+      isValid: false,
+      error: "Please enter a valid, correctly formatted email address (e.g. name@domain.com).",
+    };
+  }
+
+  return { isValid: true, normalized: clean };
 }
 
 export const signupSchema = z

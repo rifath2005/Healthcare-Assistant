@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   validateEmailGate,
+  validateDoctorIdentifierGate,
   validatePatientProfileGate,
   validateDoctorApprovalGate,
   matchDoctorToPatient,
@@ -47,6 +48,7 @@ describe("Healthcare Validation Architecture Gates", () => {
         { raw: "PATIENT.CLINIC@DOMAIN.ORG", expected: "patient.clinic@domain.org" },
         { raw: "  dr.smith+triage@clinic.co.uk  ", expected: "dr.smith+triage@clinic.co.uk" },
         { raw: "user123@sub.domain.med", expected: "user123@sub.domain.med" },
+        { raw: "ADMIN@HEALTHCARE.LOCAL", expected: "admin@healthcare.local" },
       ];
 
       for (const { raw, expected } of validEmails) {
@@ -55,6 +57,46 @@ describe("Healthcare Validation Architecture Gates", () => {
         expect(result.normalizedEmail).toBe(expected);
         expect(result.error).toBeUndefined();
       }
+    });
+
+    it("should reject uppercase constraints if unhandled or normalize automatically", () => {
+      // Mixed case must automatically normalize to lowercase
+      const mixedCase = "Doctor.Elena.Rostova@HealthCare.Local";
+      const res = validateEmailGate(mixedCase);
+      expect(res.isValid).toBe(true);
+      expect(res.normalizedEmail).toBe("doctor.elena.rostova@healthcare.local");
+      expect(res.normalizedEmail).not.toMatch(/[A-Z]/);
+    });
+
+    it("should strictly gate password section access across user, doctor, admin, and signup", () => {
+      // 1. User & Admin invalid email -> password section must not be accessible
+      const invalidUserEmail = "not-a-valid-email";
+      const userGate = validateEmailGate(invalidUserEmail);
+      expect(userGate.isValid).toBe(false);
+      // Access must be blocked
+      const canAccessUserPassword = userGate.isValid;
+      expect(canAccessUserPassword).toBe(false);
+
+      // 2. Doctor Portal -> invalid email or code -> password section must not be accessible
+      const invalidDoctorInput = "invalid doc";
+      const doctorGate = validateDoctorIdentifierGate(invalidDoctorInput);
+      expect(doctorGate.isValid).toBe(false);
+      const canAccessDoctorPassword = doctorGate.isValid;
+      expect(canAccessDoctorPassword).toBe(false);
+
+      // 3. Valid email -> unlocks password section access
+      const validEmail = "USER@CLINIC.COM";
+      const validGate = validateEmailGate(validEmail);
+      expect(validGate.isValid).toBe(true);
+      expect(validGate.normalizedEmail).toBe("user@clinic.com");
+      const canAccessPasswordNow = validGate.isValid;
+      expect(canAccessPasswordNow).toBe(true);
+
+      // 4. Valid doctor identifier -> unlocks security PIN section access
+      const validDocCode = "DR-ROSTOVA-102";
+      const validDocGate = validateDoctorIdentifierGate(validDocCode);
+      expect(validDocGate.isValid).toBe(true);
+      expect(validDocGate.normalized).toBe("dr-rostova-102");
     });
   });
 

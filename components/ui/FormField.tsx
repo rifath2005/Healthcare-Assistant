@@ -13,7 +13,7 @@ export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (type === "email" && e.target.value) {
-        e.target.value = e.target.value.toLowerCase();
+        e.target.value = e.target.value.toLowerCase().replace(/\s+/g, "");
       }
       onChange?.(e);
     };

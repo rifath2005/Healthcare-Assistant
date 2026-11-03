@@ -18,7 +18,7 @@
  *    - If multiple doctors exist in the same field, suggests both with their specific advantages.
  */
 
-import { emailSchema } from "@/lib/validations/auth";
+import { emailSchema, validateEmailFormat } from "@/lib/validations/auth";
 
 export interface PatientProfileData {
   id?: string;
@@ -61,31 +61,59 @@ export interface MatchedDoctorDetail {
 /**
  * Gate 1: Email Validation Gate
  * Validates email format strictly.
- * Returns isValid = false if the email is empty or malformed.
+ * Returns isValid = false if the email is empty, contains spaces, consecutive dots, or is malformed.
  */
 export function validateEmailGate(email: string | null | undefined): {
   isValid: boolean;
   normalizedEmail?: string;
   error?: string;
 } {
-  if (!email || typeof email !== "string" || !email.trim()) {
-    return { isValid: false, error: "Email address is required." };
+  const result = validateEmailFormat(email);
+  return {
+    isValid: result.isValid,
+    normalizedEmail: result.normalized,
+    error: result.error,
+  };
+}
+
+/**
+ * Gate 1B: Clinician Provider Identifier Gate
+ * Validates doctor work email or clinical code (e.g. DR-ROSTOVA-102)
+ * before revealing provider security PIN.
+ */
+export function validateDoctorIdentifierGate(input: string | null | undefined): {
+  isValid: boolean;
+  normalized?: string;
+  isEmail: boolean;
+  error?: string;
+} {
+  if (!input || typeof input !== "string" || !input.trim()) {
+    return { isValid: false, isEmail: false, error: "Physician work email or clinical code is required." };
   }
 
-  const clean = email.trim().toLowerCase();
-  const result = emailSchema.safeParse(clean);
+  const clean = input.trim().toLowerCase().replace(/\s+/g, "");
 
-  if (!result.success) {
+  if (clean.includes("@")) {
+    const emailResult = validateEmailFormat(clean);
     return {
-      isValid: false,
-      error: "Please enter a valid, correctly formatted email address (e.g. name@domain.com).",
+      isValid: emailResult.isValid,
+      normalized: emailResult.normalized,
+      isEmail: true,
+      error: emailResult.error,
     };
   }
 
-  return {
-    isValid: true,
-    normalizedEmail: result.data,
-  };
+  // Clinical Code verification: format DR-XXXX-XXX or similar (at least 5 chars)
+  const codeRegex = /^dr-[a-z0-9-]+$/i;
+  if (!codeRegex.test(clean) || clean.length < 5) {
+    return {
+      isValid: false,
+      isEmail: false,
+      error: "Enter a valid physician work email (e.g. name@healthcare.local) or clinical code (e.g. DR-ROSTOVA-102).",
+    };
+  }
+
+  return { isValid: true, normalized: clean, isEmail: false };
 }
 
 /**
