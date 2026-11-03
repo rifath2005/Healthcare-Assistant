@@ -35,6 +35,8 @@ interface Doctor {
   verification_status?: "pending" | "approved" | "rejected";
   is_approved?: boolean;
   rejection_reason?: string;
+  specialization_study?: string;
+  advantages?: string[];
 }
 
 interface DoctorCredentials {
@@ -364,6 +366,18 @@ export default function AdminDoctorsPage() {
                     <span className="font-semibold text-slate-800 dark:text-slate-200">Document/Proof: </span>
                     <span>{doc.qualification_proof || "Not submitted"}</span>
                   </div>
+                  {doc.specialization_study && (
+                    <div className="text-slate-600 dark:text-slate-400 text-[10px] line-clamp-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">Studies: </span>
+                      <span>{doc.specialization_study}</span>
+                    </div>
+                  )}
+                  {doc.advantages && doc.advantages.length > 0 && (
+                    <div className="text-slate-600 dark:text-slate-400 text-[10px] line-clamp-2">
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">Advantages: </span>
+                      <span>{doc.advantages.join(" • ")}</span>
+                    </div>
+                  )}
                   {isRejected && doc.rejection_reason && (
                     <div className="text-red-600 dark:text-red-400 text-[10px] pt-1 border-t border-red-100 dark:border-red-900/40">
                       Reason: {doc.rejection_reason}

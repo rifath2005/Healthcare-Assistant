@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  FileCheck2,
 } from "lucide-react";
 import { validateDoctorCredentials } from "@/lib/doctors";
 import { toast } from "sonner";
@@ -174,18 +175,46 @@ export default function DoctorLoginPage() {
             </div>
           </form>
 
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-center space-y-3">
+          {/* New Doctor Listing Request & Credentialing Callout */}
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40 text-center space-y-1.5">
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                New Physician or Specialist?
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                Submit your medical license and proof of qualification for administrative review to be listed in our directory.
+              </p>
+              <Link
+                href="/doctor/apply"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 underline underline-offset-2 pt-0.5 transition-colors"
+              >
+                <FileCheck2 className="w-3.5 h-3.5" />
+                Apply for Doctor Listing &amp; Verification
+              </Link>
+            </div>
+          </div>
+
+          <div className="pt-2 text-center space-y-2.5">
             <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1.5">
               <Lock className="w-3 h-3 text-emerald-600" />
               <span>HIPAA Compliant Session &bull; 256-bit Encrypted Workstation</span>
             </p>
 
-            <Link
-              href="/"
-              className="text-[11px] text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium inline-block transition-colors"
-            >
-              Return to Public Portal
-            </Link>
+            <div className="flex items-center justify-center gap-4 text-[11px] text-slate-500">
+              <Link
+                href="/doctor/verification"
+                className="hover:text-emerald-600 dark:hover:text-emerald-400 font-medium transition-colors"
+              >
+                Check Verification Status
+              </Link>
+              <span>&bull;</span>
+              <Link
+                href="/"
+                className="hover:text-emerald-600 dark:hover:text-emerald-400 font-medium transition-colors"
+              >
+                Return to Public Portal
+              </Link>
+            </div>
           </div>
         </div>
       </div>
