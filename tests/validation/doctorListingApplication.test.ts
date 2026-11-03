@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import { POST } from "@/app/api/doctor/apply/route";
 import { NextRequest } from "next/server";
 import {
@@ -7,6 +7,14 @@ import {
   type PatientProfileData,
 } from "@/lib/validationArchitecture";
 import { CLINIC_DOCTORS } from "@/lib/doctors";
+import {
+  getAllDoctorsForAdmin,
+  getVerifiedApprovedDoctorsForPatients,
+  registerDoctorApplication,
+  updateDoctorVerificationStatus,
+  getPersistedDoctors,
+  persistDoctors,
+} from "@/lib/doctorRegistry";
 
 // Mock Supabase admin client
 vi.mock("@/lib/supabase/server", () => ({
@@ -14,6 +22,7 @@ vi.mock("@/lib/supabase/server", () => ({
     from: () => ({
       upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
       insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      update: vi.fn().mockReturnThis(),
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -212,6 +221,99 @@ describe("Doctor Listing Request & Credentialing Gate", () => {
       expect(matchResult.success).toBe(true);
       expect(matchResult.matchedDoctor?.id).toBe("doc-approved-neurology");
       expect(matchResult.eligibleDoctors).toHaveLength(1);
+    });
+  });
+
+  describe("Unified Doctor Registry & Admin Reflection Verification", () => {
+    const testDocId = "d0000000-0000-4000-8000-000000000001";
+
+    it("should immediately reflect new doctor application in admin view but keep patient view clean", async () => {
+      // 1. Register a doctor application
+      const appliedDoc = await registerDoctorApplication({
+        id: testDocId,
+        name: "Dr. Gregory House, MD",
+        email: "gregory.house@princeton-plainsboro.test",
+        specialty: "Diagnostic Medicine & Nephrology",
+        license_number: "NJ-MED-99442",
+        qualification_proof: "Board of Diagnostic Medicine & State Medical License #99442",
+        specialization_study: "Double board-certified in infectious disease and nephrology with focus on rare differential diagnoses.",
+        advantages: ["Specialized in solving complex, multi-system diagnostic puzzles"],
+        bio: "Department head of Diagnostic Medicine.",
+      });
+
+      expect(appliedDoc.verification_status).toBe("pending");
+      expect(appliedDoc.is_approved).toBe(false);
+      expect(appliedDoc.is_active).toBe(false);
+
+      // 2. Check Admin view: Doctor MUST appear in admin view
+      const adminDocs = await getAllDoctorsForAdmin();
+      const foundInAdmin = adminDocs.find((d) => d.id === testDocId);
+      expect(foundInAdmin).toBeDefined();
+      expect(foundInAdmin?.name).toBe("Dr. Gregory House, MD");
+      expect(foundInAdmin?.verification_status).toBe("pending");
+      expect(foundInAdmin?.license_number).toBe("NJ-MED-99442");
+
+      // 3. Check Patient view: Doctor MUST NOT appear in patient view
+      const patientDocs = await getVerifiedApprovedDoctorsForPatients();
+      const foundInPatient = patientDocs.find((d) => d.id === testDocId);
+      expect(foundInPatient).toBeUndefined();
+    });
+
+    it("should reflect doctor in patient view ONLY after admin approves credentials", async () => {
+      // 1. Admin approves the doctor
+      const approved = await updateDoctorVerificationStatus(testDocId, "approve");
+      expect(approved).not.toBeNull();
+      expect(approved?.verification_status).toBe("approved");
+      expect(approved?.is_approved).toBe(true);
+      expect(approved?.is_active).toBe(true);
+
+      // 2. Check Patient view: Doctor NOW appears in patient view
+      const patientDocs = await getVerifiedApprovedDoctorsForPatients();
+      const foundInPatient = patientDocs.find((d) => d.id === testDocId);
+      expect(foundInPatient).toBeDefined();
+      expect(foundInPatient?.id).toBe(testDocId);
+      expect(foundInPatient?.verification_status).toBe("approved");
+
+      // 3. Patient matching works with newly approved doctor
+      const patientProfile: PatientProfileData = {
+        health_issues: "Unexplained kidney failure with simultaneous systemic rash",
+        age: 45,
+        is_profile_complete: true,
+      };
+      const match = matchDoctorToPatient(patientProfile, patientDocs);
+      expect(match.success).toBe(true);
+      expect(match.eligibleDoctors.some((d) => d.id === testDocId)).toBe(true);
+    });
+
+    it("should revoke doctor from patient view if admin rejects credentials", async () => {
+      // 1. Admin rejects the doctor with a reason
+      const rejected = await updateDoctorVerificationStatus(
+        testDocId,
+        "reject",
+        "License verification failed against state registry."
+      );
+      expect(rejected).not.toBeNull();
+      expect(rejected?.verification_status).toBe("rejected");
+      expect(rejected?.is_approved).toBe(false);
+      expect(rejected?.is_active).toBe(false);
+      expect(rejected?.rejection_reason).toBe("License verification failed against state registry.");
+
+      // 2. Patient view: Doctor MUST NOT appear
+      const patientDocs = await getVerifiedApprovedDoctorsForPatients();
+      const foundInPatient = patientDocs.find((d) => d.id === testDocId);
+      expect(foundInPatient).toBeUndefined();
+
+      // 3. Admin view: Doctor is still visible with rejected status and reason
+      const adminDocs = await getAllDoctorsForAdmin();
+      const foundInAdmin = adminDocs.find((d) => d.id === testDocId);
+      expect(foundInAdmin).toBeDefined();
+      expect(foundInAdmin?.verification_status).toBe("rejected");
+      expect(foundInAdmin?.rejection_reason).toBe("License verification failed against state registry.");
+    });
+
+    afterAll(() => {
+      const remaining = getPersistedDoctors().filter((d) => d.id !== testDocId);
+      persistDoctors(remaining);
     });
   });
 });

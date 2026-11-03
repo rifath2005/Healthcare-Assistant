@@ -15,9 +15,10 @@ import {
 } from "@/lib/sanitizer";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { recordGeminiUsage } from "@/lib/telemetry";
 import { matchDoctorToPatient } from "@/lib/validationArchitecture";
 import { CLINIC_DOCTORS } from "@/lib/doctors";
+import { getVerifiedApprovedDoctorsForPatients } from "@/lib/doctorRegistry";
+import { recordGeminiUsage } from "@/lib/telemetry";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -205,9 +206,10 @@ export async function POST(req: NextRequest) {
 
       if (healthIssues || patientAge || sanitizedInput) {
         const symptomsQuery = [healthIssues, sanitizedInput].filter(Boolean).join(" ");
+        const verifiedCandidates = await getVerifiedApprovedDoctorsForPatients();
         const matchResult = matchDoctorToPatient(
           { health_issues: symptomsQuery, age: patientAge || 30, is_profile_complete: true },
-          CLINIC_DOCTORS
+          verifiedCandidates as any
         );
 
         let matchDirective = "";

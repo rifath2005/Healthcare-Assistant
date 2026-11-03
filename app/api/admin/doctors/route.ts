@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { createServerSupabaseClient, createAdminClient } from "@/lib/supabase/server";
 import { getAuthenticatedDoctor } from "@/lib/doctorAuth";
 import { CLINIC_DOCTORS, type DoctorProfile } from "@/lib/doctors";
 import { validateDoctorApprovalGate } from "@/lib/validationArchitecture";
+import {
+  getAllDoctorsForAdmin,
+  updateDoctorVerificationStatus,
+  getPersistedDoctors,
+  persistDoctors,
+} from "@/lib/doctorRegistry";
 
 export const runtime = "nodejs";
 
@@ -63,18 +70,8 @@ async function requireAdminAuth(req: NextRequest): Promise<NextResponse | null> 
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createAdminClient();
-    const { data: doctors, error } = await supabase
-      .from("doctors")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (!error && doctors && doctors.length > 0) {
-      return NextResponse.json({ doctors });
-    }
-
-    // Fallback to clinic physicians
-    return NextResponse.json({ doctors: CLINIC_DOCTORS });
+    const doctors = await getAllDoctorsForAdmin();
+    return NextResponse.json({ doctors });
   } catch (err: any) {
     console.error("Admin doctors GET exception:", err);
     return NextResponse.json({ doctors: CLINIC_DOCTORS });
@@ -167,8 +164,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (!newDoctor) {
-      // In-memory mock doctor creation for local/test environments
-      const generatedId = `doc-${Date.now()}`;
+      // In-memory / persistent registry creation with valid UUID
+      const generatedId = crypto.randomUUID();
       newDoctor = {
         id: generatedId,
         ...doctorInsertData,
@@ -176,7 +173,18 @@ export async function POST(req: NextRequest) {
         clinicalCode: `DR-${name.split(" ").pop()?.toUpperCase() || "DOC"}-01`,
         email: `${name.toLowerCase().replace(/[^a-z]/g, "")}@healthcare.local`,
       };
-      CLINIC_DOCTORS.push(newDoctor as DoctorProfile);
+      const allPersisted = getPersistedDoctors();
+      allPersisted.unshift(newDoctor);
+      persistDoctors(allPersisted);
+    } else {
+      const allPersisted = getPersistedDoctors();
+      const existingIdx = allPersisted.findIndex((d) => d.id === newDoctor.id);
+      if (existingIdx !== -1) {
+        allPersisted[existingIdx] = { ...allPersisted[existingIdx], ...newDoctor };
+      } else {
+        allPersisted.unshift(newDoctor);
+      }
+      persistDoctors(allPersisted);
     }
 
     // Auto-compute login credentials for administrative reference
@@ -255,42 +263,21 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    const updatedFields = isApproveAction
-      ? {
-          verification_status: "approved" as const,
-          is_approved: true,
-          rejection_reason: null,
-        }
-      : {
-          verification_status: "rejected" as const,
-          is_approved: false,
-          rejection_reason: rejection_reason?.trim() || "Submitted qualification documents did not meet credentialing standards.",
-        };
+    // Update persistent registry
+    const updatedInRegistry = await updateDoctorVerificationStatus(
+      id,
+      isApproveAction ? "approve" : "reject",
+      rejection_reason
+    );
 
-    // Update in-memory CLINIC_DOCTORS
-    if (clinicDoc) {
-      clinicDoc.verification_status = updatedFields.verification_status;
-      clinicDoc.is_approved = updatedFields.is_approved;
-      clinicDoc.rejection_reason = updatedFields.rejection_reason || undefined;
-    }
-
-    // Update Supabase if available
-    let updatedDoctor: any = { ...currentDoc, ...updatedFields };
-    try {
-      if (supabase) {
-        const { data, error } = await supabase
-          .from("doctors")
-          .update(updatedFields)
-          .eq("id", id)
-          .select()
-          .single();
-        if (!error && data) {
-          updatedDoctor = data;
-        }
-      }
-    } catch (err) {
-      console.warn("Supabase doctor review update notice:", err);
-    }
+    const fallbackUpdated = {
+      ...currentDoc,
+      verification_status: isApproveAction ? ("approved" as const) : ("rejected" as const),
+      is_approved: isApproveAction,
+      is_active: isApproveAction,
+      rejection_reason: isApproveAction ? undefined : rejection_reason,
+    };
+    let updatedDoctor: any = updatedInRegistry || fallbackUpdated;
 
     return NextResponse.json({
       success: true,
@@ -400,10 +387,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Doctor ID is required" }, { status: 400 });
     }
 
-    const idx = CLINIC_DOCTORS.findIndex((d) => d.id === id);
-    if (idx !== -1) {
-      CLINIC_DOCTORS.splice(idx, 1);
-    }
+    const allPersisted = getPersistedDoctors();
+    const updatedList = allPersisted.filter((d) => d.id !== id);
+    persistDoctors(updatedList);
 
     try {
       const supabase = createAdminClient();

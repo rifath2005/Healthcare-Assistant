@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
-import { CLINIC_DOCTORS, type DoctorProfile } from "@/lib/doctors";
 import { validateEmailGate } from "@/lib/validationArchitecture";
+import { registerDoctorApplication } from "@/lib/doctorRegistry";
 
 export const runtime = "nodejs";
-
-const DEFAULT_WORKING_HOURS = {
-  monday: { start: "09:00", end: "17:00" },
-  tuesday: { start: "09:00", end: "17:00" },
-  wednesday: { start: "09:00", end: "17:00" },
-  thursday: { start: "09:00", end: "17:00" },
-  friday: { start: "09:00", end: "16:00" },
-};
 
 /**
  * Public Doctor Listing Application Endpoint
@@ -89,94 +80,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const trimmedName = name.trim();
-    const normalizedEmail = emailGate.normalizedEmail;
-    const trimmedSpecialty = specialty.trim();
-    const trimmedLicense = license_number.trim();
-    const trimmedProof = qualification_proof.trim();
-    const trimmedStudy = typeof specialization_study === "string" ? specialization_study.trim() : "";
     const parsedAdvantages: string[] = Array.isArray(advantages)
       ? advantages.map((a: any) => String(a).trim()).filter(Boolean)
       : typeof advantages === "string" && advantages.trim()
       ? advantages.split("\n").map((s) => s.replace(/^[-*•]\s*/, "").trim()).filter(Boolean)
       : [];
 
-    const defaultAvatar =
-      typeof avatar_url === "string" && avatar_url.trim()
-        ? avatar_url.trim()
-        : "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=300";
-
-    const lastName = trimmedName.split(" ").pop()?.replace(/[^a-zA-Z]/g, "").toUpperCase() || "DOC";
-    const generatedId = `doc-req-${Date.now()}`;
-    const clinicalCode = `DR-${lastName}-${generatedId.slice(-4)}`;
-
-    // Set status to PENDING and NOT approved
-    const doctorRecord: DoctorProfile = {
-      id: generatedId,
-      name: trimmedName,
-      email: normalizedEmail,
-      specialty: trimmedSpecialty,
-      clinicRoom: clinicRoom?.trim() || "Room 101 - Clinical Consultation Suite",
-      avatar_url: defaultAvatar,
-      bio: bio?.trim() || `Physician specializing in ${trimmedSpecialty}.`,
-      calendar_id: "primary",
-      clinicalCode,
-      license_number: trimmedLicense,
-      qualification_proof: trimmedProof,
-      verification_status: "pending",
-      is_approved: false,
-      is_active: false, // Inactive until admin approves
-      working_hours: working_hours || DEFAULT_WORKING_HOURS,
-      specialization_study: trimmedStudy || undefined,
+    // Register into persistent doctor registry (persists across processes and syncs to DB)
+    const newDoc = await registerDoctorApplication({
+      name: name.trim(),
+      email: emailGate.normalizedEmail,
+      specialty: specialty.trim(),
+      license_number: license_number.trim(),
+      qualification_proof: qualification_proof.trim(),
+      specialization_study: typeof specialization_study === "string" ? specialization_study.trim() : undefined,
       advantages: parsedAdvantages.length > 0 ? parsedAdvantages : undefined,
-    };
-
-    // Check if physician email already registered
-    const existingIndex = CLINIC_DOCTORS.findIndex(
-      (d) => d.email.toLowerCase() === normalizedEmail || d.license_number === trimmedLicense
-    );
-
-    if (existingIndex !== -1) {
-      // Update existing record's verification submission
-      CLINIC_DOCTORS[existingIndex].license_number = trimmedLicense;
-      CLINIC_DOCTORS[existingIndex].qualification_proof = trimmedProof;
-      CLINIC_DOCTORS[existingIndex].verification_status = "pending";
-      CLINIC_DOCTORS[existingIndex].is_approved = false;
-      CLINIC_DOCTORS[existingIndex].rejection_reason = undefined;
-      if (trimmedStudy) CLINIC_DOCTORS[existingIndex].specialization_study = trimmedStudy;
-      if (parsedAdvantages.length > 0) CLINIC_DOCTORS[existingIndex].advantages = parsedAdvantages;
-    } else {
-      CLINIC_DOCTORS.push(doctorRecord);
-    }
-
-    // Persist to Supabase if configured
-    try {
-      const supabase = createAdminClient();
-      await supabase.from("doctors").upsert(
-        {
-          id: existingIndex !== -1 ? CLINIC_DOCTORS[existingIndex].id : generatedId,
-          name: trimmedName,
-          email: normalizedEmail,
-          specialty: trimmedSpecialty,
-          clinicRoom: doctorRecord.clinicRoom,
-          avatar_url: defaultAvatar,
-          bio: doctorRecord.bio,
-          calendar_id: "primary",
-          clinicalCode,
-          license_number: trimmedLicense,
-          qualification_proof: trimmedProof,
-          verification_status: "pending",
-          is_approved: false,
-          is_active: false,
-          working_hours: doctorRecord.working_hours,
-          specialization_study: trimmedStudy || null,
-          advantages: parsedAdvantages.length > 0 ? parsedAdvantages : null,
-        },
-        { onConflict: "email" }
-      );
-    } catch (dbErr) {
-      console.warn("Supabase doctor listing request insert warning:", dbErr);
-    }
+      bio: typeof bio === "string" ? bio.trim() : undefined,
+      clinicRoom: typeof clinicRoom === "string" ? clinicRoom.trim() : undefined,
+      avatar_url: typeof avatar_url === "string" ? avatar_url.trim() : undefined,
+      working_hours,
+    });
 
     return NextResponse.json(
       {
@@ -184,14 +107,14 @@ export async function POST(req: NextRequest) {
         message:
           "Doctor listing request submitted successfully. A clinic administrator will review your medical credentials and proof of qualification before listing.",
         doctor: {
-          id: existingIndex !== -1 ? CLINIC_DOCTORS[existingIndex].id : generatedId,
-          name: trimmedName,
-          email: normalizedEmail,
-          specialty: trimmedSpecialty,
-          license_number: trimmedLicense,
-          qualification_proof: trimmedProof,
-          verification_status: "pending",
-          is_approved: false,
+          id: newDoc.id,
+          name: newDoc.name,
+          email: newDoc.email,
+          specialty: newDoc.specialty,
+          license_number: newDoc.license_number,
+          qualification_proof: newDoc.qualification_proof,
+          verification_status: newDoc.verification_status,
+          is_approved: newDoc.is_approved,
         },
       },
       { status: 201 }

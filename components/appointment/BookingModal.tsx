@@ -32,9 +32,12 @@ export function BookingModal({
   initialMode = "virtual",
   initialDoctorId,
 }: BookingModalProps) {
-  const [doctors, setDoctors] = useState<Doctor[]>(CLINIC_DOCTORS as any);
+  const approvedInitial = CLINIC_DOCTORS.filter(
+    (d) => d.verification_status === "approved" && d.is_approved === true
+  );
+  const [doctors, setDoctors] = useState<Doctor[]>(approvedInitial as any);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
-    initialDoctorId || CLINIC_DOCTORS[0]?.id || ""
+    initialDoctorId || approvedInitial[0]?.id || ""
   );
   const [consultationType, setConsultationType] = useState<"virtual" | "direct">(initialMode);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createAdminClient } from "@/lib/supabase/server";
 import { CLINIC_DOCTORS } from "@/lib/doctors";
+import { getVerifiedApprovedDoctorsForPatients } from "@/lib/doctorRegistry";
 import {
   validatePatientProfileGate,
   validateDoctorApprovalGate,
@@ -80,28 +81,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 3. Fetch doctors and apply Doctor Verification Gate
-    let candidateDoctors: DoctorVerificationData[] = [];
-    try {
-      const admin = createAdminClient();
-      const { data: dbDocs } = await admin
-        .from("doctors")
-        .select("id, name, specialty, bio, avatar_url, calendar_id, license_number, qualification_proof, verification_status, is_approved, is_active")
-        .eq("is_active", true);
-
-      if (dbDocs && dbDocs.length > 0) {
-        candidateDoctors = dbDocs;
-      }
-    } catch {
-      // fallback
-    }
-
-    if (candidateDoctors.length === 0) {
-      candidateDoctors = CLINIC_DOCTORS;
-    }
+    // 3. Fetch strictly verified & approved doctors
+    const candidateDoctors = await getVerifiedApprovedDoctorsForPatients();
 
     // Doctor validation happens before any doctor is suggested
-    const matchResult = matchDoctorToPatient(patientProfile, candidateDoctors);
+    const matchResult = matchDoctorToPatient(patientProfile, candidateDoctors as any);
 
     if (!matchResult.success) {
       return NextResponse.json(
@@ -144,8 +128,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fetch doctors from CLINIC_DOCTORS
-    const matchResult = matchDoctorToPatient(patientProfile, CLINIC_DOCTORS);
+    // Fetch strictly verified doctors
+    const verifiedDoctors = await getVerifiedApprovedDoctorsForPatients();
+    const matchResult = matchDoctorToPatient(patientProfile, verifiedDoctors as any);
     if (!matchResult.success) {
       return NextResponse.json(
         { error: matchResult.error || "Unable to match a verified physician." },
