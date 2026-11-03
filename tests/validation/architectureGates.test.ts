@@ -372,5 +372,67 @@ describe("Healthcare Validation Architecture Gates", () => {
       expect(result.matchedDoctor?.id).toBe("doc-gp");
       expect(result.matchedDoctor?.specialty).toContain("General Practice");
     });
+
+    it("should suggest both specialists with their distinct advantages when multiple doctors match the same field", () => {
+      const orthopedicDoctors: DoctorVerificationData[] = [
+        {
+          id: "doc-ortho-chen",
+          name: "Dr. Michael Chen, MD",
+          specialty: "Orthopedic Surgery & Joint Reconstruction",
+          license_number: "ORTH-LIC-2023-6610",
+          qualification_proof: "Verified ABOS Orthopedic Board Certification",
+          verification_status: "approved",
+          is_approved: true,
+          is_active: true,
+          specialization_study: "American Board of Orthopaedic Surgery (ABOS) Certified with subspecialty fellowship in Joint Reconstruction and meniscus mechanics.",
+          advantages: [
+            "Specialized in structural joint mechanics, cartilage preservation, and surgical/interventional consults",
+            "Direct evaluation for interventional joint injections and surgical repair",
+          ],
+        },
+        {
+          id: "doc-pmr-patel",
+          name: "Dr. Anita Patel, MD",
+          specialty: "Physical Medicine, Rehabilitation & Musculoskeletal Health",
+          license_number: "PMR-LIC-2024-3381",
+          qualification_proof: "Verified ABPMR Board Certification in PM&R",
+          verification_status: "approved",
+          is_approved: true,
+          is_active: true,
+          specialization_study: "American Board of Physical Medicine and Rehabilitation (ABPMR) Certified with specialized studies in biomechanical kinetic chains.",
+          advantages: [
+            "100% focused on non-surgical, conservative restorative rehabilitation protocols",
+            "Targeted joint mobility therapy and chronic pain compensation balancing",
+          ],
+        },
+      ];
+
+      const kneePainPatient: PatientProfileData = {
+        health_issues: "Dealing with sharp pain in my knee for four years after trying medications without lasting relief",
+        age: 48,
+        is_profile_complete: true,
+      };
+
+      const result = matchDoctorToPatient(kneePainPatient, [...orthopedicDoctors, ...approvedDoctors]);
+      expect(result.success).toBe(true);
+      // Both specialists in the joint/musculoskeletal field are suggested
+      expect(result.matchedDoctors.length).toBeGreaterThanOrEqual(2);
+      expect(result.matchedDoctors.some((m) => m.doctor.id === "doc-ortho-chen")).toBe(true);
+      expect(result.matchedDoctors.some((m) => m.doctor.id === "doc-pmr-patel")).toBe(true);
+
+      // Verify that why suggested is shown at the top and advantages are populated
+      expect(result.topRecommendationSummary).toContain("Why These Specialists Are Suggested by Us");
+      expect(result.topRecommendationSummary).toContain("knee");
+      expect(result.topRecommendationSummary).toContain("Dr. Michael Chen, MD");
+      expect(result.topRecommendationSummary).toContain("Dr. Anita Patel, MD");
+      expect(result.topRecommendationSummary).toContain("Advantages");
+
+      // Verify doctor specialization studies and advantages are present
+      for (const matched of result.matchedDoctors) {
+        expect(matched.whySuggested).toBeDefined();
+        expect(matched.specializationStudy).toBeDefined();
+        expect(matched.advantages.length).toBeGreaterThan(0);
+      }
+    });
   });
 });

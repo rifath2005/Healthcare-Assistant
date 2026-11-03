@@ -16,6 +16,8 @@ import {
 import { checkRateLimit } from "@/lib/ratelimit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { recordGeminiUsage } from "@/lib/telemetry";
+import { matchDoctorToPatient } from "@/lib/validationArchitecture";
+import { CLINIC_DOCTORS } from "@/lib/doctors";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -201,8 +203,27 @@ export async function POST(req: NextRequest) {
         console.warn("Notice loading profile context in chat route:", profErr);
       }
 
-      if (healthIssues || patientAge) {
-        patientProfileDirective = `\n\n<patient_health_profile>\nPatient Age: ${patientAge || "Unspecified"}\nGender: ${gender || "Unspecified"}\nStated Primary Health Issue / Symptoms: ${healthIssues || "None specified"}\nMedical History & Pre-existing Conditions: ${history || "None reported"}\nAllergies: ${allergies || "None"}\nMedications: ${medications || "None"}\n</patient_health_profile>\nCLINICAL CONTEXT DIRECTIVE: The user has completed their mandatory health profile above. You MUST ground your clinical responses in their stated health issues, age, and medical history. Personalize triage and physician recommendations accordingly.`;
+      if (healthIssues || patientAge || sanitizedInput) {
+        const symptomsQuery = [healthIssues, sanitizedInput].filter(Boolean).join(" ");
+        const matchResult = matchDoctorToPatient(
+          { health_issues: symptomsQuery, age: patientAge || 30, is_profile_complete: true },
+          CLINIC_DOCTORS
+        );
+
+        let matchDirective = "";
+        if (matchResult.success && matchResult.matchedDoctors.length > 0) {
+          matchDirective = `\n\n<matched_clinic_specialists>\n` +
+            `RECOMMENDED CLINIC SPECIALISTS FOR PATIENT'S SYMPTOMS:\n` +
+            matchResult.topRecommendationSummary +
+            `\n\nCRITICAL DOCTOR RECOMMENDATION RULES:\n` +
+            `- If suggesting a doctor or if the user asks about an appointment, ALWAYS place at the top WHY the doctor was suggested by us based on their symptoms.\n` +
+            `- Clearly state what they specialized in and their medical study/board certifications.\n` +
+            `- If multiple doctors in the same field are matched above, suggest BOTH doctors with their specific advantages side-by-side so the patient can choose.\n` +
+            `- Do NOT list unrelated specialists (such as cardiologists or dermatologists for knee/joint pain).\n` +
+            `</matched_clinic_specialists>`;
+        }
+
+        patientProfileDirective = `\n\n<patient_health_profile>\nPatient Age: ${patientAge || "Unspecified"}\nGender: ${gender || "Unspecified"}\nStated Primary Health Issue / Symptoms: ${healthIssues || "None specified"}\nMedical History & Pre-existing Conditions: ${history || "None reported"}\nAllergies: ${allergies || "None"}\nMedications: ${medications || "None"}\n</patient_health_profile>\nCLINICAL CONTEXT DIRECTIVE: Ground clinical responses in their stated health issues, age, and medical history. Personalize triage and physician recommendations accordingly.${matchDirective}`;
       }
     }
 

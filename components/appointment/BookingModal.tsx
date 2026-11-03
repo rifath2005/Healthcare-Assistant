@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Calendar, UserCheck, Stethoscope, Video, Loader2, CheckCircle2 } from "lucide-react";
+import { X, Calendar, UserCheck, Stethoscope, Video, Loader2, CheckCircle2, Sparkles } from "lucide-react";
 import { SlotPicker, type Slot } from "./SlotPicker";
 import { createClient } from "@/lib/supabase/client";
 import { getClientTimezone } from "@/lib/timezone";
@@ -42,6 +42,8 @@ export function BookingModal({
   const [loading, setLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState<any | null>(null);
   const [verification, setVerification] = useState<any | null>(null);
+  const [matchedDoctors, setMatchedDoctors] = useState<any[]>([]);
+  const [topRecommendation, setTopRecommendation] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialMode) setConsultationType(initialMode);
@@ -59,31 +61,33 @@ export function BookingModal({
       .then((data) => {
         if (data.doctors && data.doctors.length > 0) {
           setDoctors(data.doctors);
-          setSelectedDoctorId((prev) =>
-            initialDoctorId && data.doctors.some((d: any) => d.id === initialDoctorId)
-              ? initialDoctorId
-              : prev && data.doctors.some((d: any) => d.id === prev)
-              ? prev
-              : data.doctors[0].id
-          );
+          if (!initialDoctorId) {
+            setSelectedDoctorId((prev) =>
+              prev && data.doctors.some((d: any) => d.id === prev) ? prev : data.doctors[0].id
+            );
+          }
         }
       })
-      .catch(() => {
-        const supabase = createClient();
-        supabase
-          .from("doctors")
-          .select("id, name, specialty, avatar_url, bio")
-          .eq("is_active", true)
-          .then(({ data }) => {
-            if (data && data.length > 0) {
-              setDoctors(data);
-              setSelectedDoctorId((prev) =>
-                prev && data.some((d: any) => d.id === prev) ? prev : data[0].id
-              );
-            }
-          });
-      });
-  }, [isOpen]);
+      .catch(() => {});
+
+    // Fetch matched doctor recommendation based on patient profile & symptoms
+    fetch("/api/doctors/match")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((matchData) => {
+        if (matchData?.success) {
+          if (matchData.suggestedDoctors && matchData.suggestedDoctors.length > 0) {
+            setMatchedDoctors(matchData.suggestedDoctors);
+          }
+          if (matchData.topRecommendationSummary) {
+            setTopRecommendation(matchData.topRecommendationSummary);
+          }
+          if (!initialDoctorId && matchData.suggestedDoctor?.id) {
+            setSelectedDoctorId(matchData.suggestedDoctor.id);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [isOpen, initialDoctorId]);
 
   const handleBook = async () => {
     if (!selectedDoctorId || !selectedSlot) {
@@ -251,6 +255,80 @@ export function BookingModal({
                 Choose between a Virtual Telehealth video consultation or Direct In-Person clinic visit.
               </p>
             </div>
+
+            {/* Why This Doctor Was Suggested By Us (Clinical Matching Banner) */}
+            {matchedDoctors.length > 0 && (
+              <div className="p-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <span>Why Recommended by Us Based on Your Health Details</span>
+                </div>
+
+                {matchedDoctors.length > 1 ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                      We have matched multiple specialists in this field for your care. Compare their clinical studies and specific advantages below:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {matchedDoctors.map((m) => {
+                        const isSelected = selectedDoctorId === m.doctor.id;
+                        return (
+                          <div
+                            key={m.doctor.id}
+                            onClick={() => {
+                              setSelectedDoctorId(m.doctor.id);
+                              setSelectedSlot(null);
+                            }}
+                            className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                              isSelected
+                                ? "bg-white dark:bg-slate-900 border-emerald-500 shadow-xs ring-2 ring-emerald-500/20"
+                                : "bg-white/70 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-emerald-400"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between font-bold text-slate-900 dark:text-white">
+                              <span>{m.doctor.name}</span>
+                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                            </div>
+                            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
+                              {m.doctor.specialty}
+                            </div>
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">Studies &amp; Board: </span>
+                              {m.specializationStudy}
+                            </div>
+                            {m.advantages && m.advantages.length > 0 && (
+                              <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-600 dark:text-slate-400">
+                                <span className="font-bold text-slate-800 dark:text-slate-200">Advantage: </span>
+                                {m.advantages[0]}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-emerald-100 dark:border-emerald-900 text-xs space-y-1">
+                    <div className="font-bold text-slate-900 dark:text-white">
+                      {matchedDoctors[0].doctor.name} — {matchedDoctors[0].doctor.specialty}
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">Why Suggested: </span>
+                      {matchedDoctors[0].whySuggested}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">Specialization &amp; Studies: </span>
+                      {matchedDoctors[0].specializationStudy}
+                    </p>
+                    {matchedDoctors[0].advantages && (
+                      <div className="pt-1 text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
+                        ✓ {matchedDoctors[0].advantages.join(" • ")}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Select Doctor */}
             <div className="space-y-1.5">

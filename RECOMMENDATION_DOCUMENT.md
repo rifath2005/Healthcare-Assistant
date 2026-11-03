@@ -54,11 +54,15 @@ The features are ordered based on clinical safety, data integrity, user security
 ---
 
 ### Priority 4: Patient-to-Doctor Matching & Suggestion Gate
-- **Components**: `app/api/doctors/match/route.ts`, `components/appointment/BookingModal.tsx`, `app/api/appointments/book/route.ts`
+- **Components**: `lib/validationArchitecture.ts`, `app/api/doctors/match/route.ts`, `components/appointment/BookingModal.tsx`, `app/api/appointments/book/route.ts`, `lib/gemini.ts`, `app/api/chat/route.ts`
 - **Why It Is Ranked #4**:
-  - **Functional Synergy**: This gate brings together the validated patient profile from Priority 2 and the verified doctor credentials from Priority 1.
-  - **Symptom-Specialty Alignment**: Prevents matching patients when there is insufficient patient data, and ensures patients are routed to appropriate specialists (e.g. mental health symptoms to psychologists, cardiac symptoms to cardiologists, dermatological symptoms to dermatologists).
+  - **Clinical Synergy**: This gate brings together the validated patient profile from Priority 2 and the verified doctor credentials from Priority 1.
+  - **Symptom-Specialty Alignment**: Prevents matching patients when there is insufficient patient data, and ensures patients are routed to appropriate specialists with clear clinical transparency.
 - **Rules Enforced**:
+  - **Prominent Rationale at Top**: Always state at the top of the recommendation WHY the doctor was suggested by us based on the patient's stated symptoms (e.g., "**Why this specialist is recommended by us:** Based on your knee pain...").
+  - **Specialization & Medical Studies**: Explicitly state the doctor's medical degrees, specialized study, and board certifications (e.g. ABOS Orthopedic Board Certification, ABPMR Certification, ABIM Fellowship).
+  - **Multiple Doctors in Same Field**: If multiple doctors are in the same field or relevant to the condition (e.g. Dr. Michael Chen in Orthopedic Surgery and Dr. Anita Patel in Physical Medicine & Rehabilitation for chronic joint/knee pain), suggest **both** with their specific advantages side-by-side.
+  - **Relevance Only**: Never dump unrelated doctors (e.g. no cardiologists or dermatologists for knee or joint pain).
   - Doctor suggestion requests fail immediately with HTTP 400 if patient profile data (health issues and age) is missing or incomplete.
   - Unapproved or pending doctors are completely excluded from the candidate matching pool.
   - Booking attempts against unverified clinicians are blocked at the API level.
@@ -167,4 +171,4 @@ A comprehensive automated test suite (`tests/validation/architectureGates.test.t
 - **Patient Profile Completion Gate**: Confirmed rejection of null profiles, missing/short health issues, invalid/out-of-range ages, and false completeness flags; confirmed acceptance of complete profiles.
 - **Doctor Approval Gate**: Confirmed rejection of incomplete doctor details, pending verification statuses, rejected credentials, and mismatched approval flags; confirmed approval of fully credentialed clinicians.
 - **Doctor Matching Gate**: Confirmed refusal of suggestions for incomplete patient profiles, strict exclusion of unapproved doctors, and accurate symptom-to-specialist clinical routing.
-- **Overall Suite**: All 19 test files and 149 individual unit and integration tests across the project pass with 0 errors, with strict TypeScript type-checking (`tsc --noEmit`) passing cleanly.
+- **Overall Suite**: All 19 test files and 150 individual unit and integration tests across the project pass with 0 errors, with strict TypeScript type-checking (`tsc --noEmit`) passing cleanly.

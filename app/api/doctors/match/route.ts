@@ -112,7 +112,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      topRecommendationSummary: matchResult.topRecommendationSummary,
       suggestedDoctor: matchResult.matchedDoctor,
+      suggestedDoctors: matchResult.matchedDoctors,
       eligibleVerifiedDoctors: matchResult.eligibleDoctors,
       patientContext: {
         statedHealthIssues: patientProfile.health_issues,
@@ -153,7 +155,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      topRecommendationSummary: matchResult.topRecommendationSummary,
       suggestedDoctor: matchResult.matchedDoctor,
+      suggestedDoctors: matchResult.matchedDoctors,
       eligibleVerifiedDoctors: matchResult.eligibleDoctors,
     });
   } catch (err: any) {

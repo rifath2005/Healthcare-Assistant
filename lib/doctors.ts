@@ -16,6 +16,9 @@ export interface DoctorProfile {
   is_active?: boolean;
   working_hours?: Record<string, { start: string; end: string }>;
   rejection_reason?: string;
+  specialization_study?: string;
+  advantages?: string[];
+  why_suggested_template?: string;
 }
 
 export const CLINIC_DOCTORS: DoctorProfile[] = [
@@ -34,6 +37,13 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     verification_status: "approved",
     is_approved: true,
     is_active: true,
+    specialization_study: "American Board of Internal Medicine (ABIM) Certification with 12 years of clinical focus on systemic differential diagnosis, multi-organ symptom triage, and chronic pain investigation.",
+    advantages: [
+      "Holistic systemic medical workup to rule out underlying inflammatory or autoimmune causes",
+      "Comprehensive diagnostic laboratory and imaging referral coordination",
+      "Broad expertise across acute infections, fatigue, metabolic health, and general wellness",
+    ],
+    why_suggested_template: "Recommended for comprehensive clinical evaluation, diagnostic lab workup, and coordinating targeted multi-specialty care.",
   },
   {
     id: "22222222-2222-2222-2222-222222222222",
@@ -50,6 +60,13 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     verification_status: "approved",
     is_approved: true,
     is_active: true,
+    specialization_study: "APA-Accredited Doctorate in Clinical Psychology specializing in Cognitive Behavioral Therapy (CBT), somatic distress management, and psychological coping strategies for chronic illness.",
+    advantages: [
+      "Targeted Cognitive Behavioral Therapy (CBT) for managing chronic distress and acute anxiety",
+      "Evidence-based somatic relaxation and neuro-grounding techniques (5-4-3-2-1, 4-7-8 breathing)",
+      "Specialized support for the emotional fatigue, burnout, and mental toll of chronic pain",
+    ],
+    why_suggested_template: "Recommended for psychological counseling, acute stress relief, anxiety resilience, and behavioral coping therapy.",
   },
   {
     id: "33333333-3333-3333-3333-333333333333",
@@ -66,6 +83,13 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     verification_status: "approved",
     is_approved: true,
     is_active: true,
+    specialization_study: "Fellow of the American College of Cardiology (FACC) with specialized research in preventative hemodynamics, vascular elasticity, and ambulatory arrhythmia monitoring.",
+    advantages: [
+      "Advanced cardiovascular evaluation for chest discomfort, palpitations, and hypertension",
+      "Targeted preventative lipid, metabolic, and vascular health programs",
+      "Integration of evidence-based lifestyle cardiology with precision pharmacological management",
+    ],
+    why_suggested_template: "Recommended for targeted cardiovascular diagnostics, blood pressure management, and heart health optimization.",
   },
   {
     id: "4ed011cc-c663-4573-84e7-4310735b63f9",
@@ -82,6 +106,59 @@ export const CLINIC_DOCTORS: DoctorProfile[] = [
     verification_status: "approved",
     is_approved: true,
     is_active: true,
+    specialization_study: "American Board of Dermatology (ABD) Certification with fellowship training in inflammatory skin barriers, clinical dermoscopy, and epidermal immunology.",
+    advantages: [
+      "Precise differential diagnosis of dermatitis, eczema, acute rashes, and allergic eruptions",
+      "Targeted non-steroidal and topical therapeutic protocols for rapid relief",
+      "Thorough lesion, mole, and full-body skin barrier health evaluations",
+    ],
+    why_suggested_template: "Recommended for specialized skin barrier triage, rash differential diagnosis, and clinical dermatological care.",
+  },
+  {
+    id: "55555555-5555-5555-5555-555555555555",
+    name: "Dr. Michael Chen, MD",
+    specialty: "Orthopedic Surgery & Joint Reconstruction",
+    email: "michael.chen@healthcare.local",
+    clinicRoom: "Room 401 - Orthopedic & Joint Care Wing",
+    avatar_url: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=300",
+    bio: "Board-certified orthopedic surgeon specializing in knee, hip, and shoulder joint mechanics, structural ligament damage, and restorative joint therapies.",
+    calendar_id: "primary",
+    clinicalCode: "DR-CHEN-401",
+    license_number: "ORTH-LIC-2023-6610",
+    qualification_proof: "Verified State Medical Board License & American Board of Orthopaedic Surgery (ABOS) Certification",
+    verification_status: "approved",
+    is_approved: true,
+    is_active: true,
+    specialization_study: "American Board of Orthopaedic Surgery (ABOS) Certified with subspecialty fellowship in Adult Joint Reconstruction, meniscus mechanics, and knee cartilage preservation.",
+    advantages: [
+      "Deep expertise in mechanical joint alignment, ligament tension, and structural cartilage wear",
+      "Direct evaluation for interventional options (targeted joint injections, cartilage repair, surgical consults)",
+      "Specialized in prolonged or chronic joint pain that failed initial conservative medications",
+    ],
+    why_suggested_template: "Recommended for specialized knee and joint structural evaluation, mechanical alignment analysis, and interventional orthopedic care.",
+  },
+  {
+    id: "66666666-6666-6666-6666-666666666666",
+    name: "Dr. Anita Patel, MD",
+    specialty: "Physical Medicine, Rehabilitation & Musculoskeletal Health (PM&R)",
+    email: "anita.patel@healthcare.local",
+    clinicRoom: "Suite 402 - Joint Recovery & Mobility Center",
+    avatar_url: "https://images.unsplash.com/photo-1594824813515-54e48b8b3a0e?auto=format&fit=crop&q=80&w=300",
+    bio: "Fellow of the American Academy of Physical Medicine & Rehabilitation specializing in non-surgical joint recovery, chronic ligament stress, and targeted mobility therapy.",
+    calendar_id: "primary",
+    clinicalCode: "DR-PATEL-402",
+    license_number: "PMR-LIC-2024-3381",
+    qualification_proof: "Verified State Medical Board License & ABPMR Board Certification in Physical Medicine & Rehabilitation",
+    verification_status: "approved",
+    is_approved: true,
+    is_active: true,
+    specialization_study: "American Board of Physical Medicine and Rehabilitation (ABPMR) Certified with specialized studies in biomechanical kinetic chains, myofascial trigger therapies, and non-surgical joint rehabilitation.",
+    advantages: [
+      "100% focused on non-surgical, conservative restorative rehabilitation protocols",
+      "Custom physical therapy, mobility restoration, and muscle compensation balancing",
+      "Specialized in long-term joint pain relief without immediate surgery",
+    ],
+    why_suggested_template: "Recommended for non-invasive joint rehabilitation, functional kinetic restoration, and targeted physical recovery protocols.",
   },
 ];
 
